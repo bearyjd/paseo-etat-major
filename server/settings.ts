@@ -1,0 +1,17 @@
+import { z } from "zod";
+import { isCleanAbsolute } from "./validate-exe.ts";
+import { isValidProject } from "./validate-input.ts";
+
+// Messages are fixed strings: a rejected value is never echoed back or logged.
+const absolutePath = z.string().refine(isCleanAbsolute, { message: "must be a clean absolute path" });
+const projectId = z.string().refine(isValidProject, { message: "must be a valid project id" });
+
+export const SettingsSchema = z.object({
+  executable: absolutePath.optional(),
+  workspace: absolutePath.optional(),
+  project: projectId.optional(),
+});
+export type Settings = z.infer<typeof SettingsSchema>;
+
+export const SETTINGS_ID = "etat-major";
+export const SETTINGS_VERSION = 1;
