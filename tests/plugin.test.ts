@@ -1,3 +1,4 @@
+import { VERSION } from "../shared/version.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRunner, type ExportResult, type Runner } from "../server/runner.ts";
@@ -68,7 +69,7 @@ test("NOT_CONFIGURED when settings are unset or invalid, and nothing is spawned"
     assert.deepEqual(await s.call("etat-major.planning.get"), { ok: false, code: "NOT_CONFIGURED" });
     assert.deepEqual(await s.call("etat-major.planning.refresh"), { ok: false, code: "NOT_CONFIGURED" });
     const st = await s.call("etat-major.status.get");
-    assert.deepEqual(st, { version: "0.0.1", configured: false, lastError: "NOT_CONFIGURED" });
+    assert.deepEqual(st, { version: VERSION, configured: false, lastError: "NOT_CONFIGURED" });
     assert.equal(execCount(s.h), 0);
   }
 });
@@ -83,7 +84,7 @@ test("get exports once, then serves the cache with the same exportedAt", async (
   const b = await s.call("etat-major.planning.get");
   assert.deepEqual(b, a);
   assert.equal(execCount(s.h), calls);
-  assert.deepEqual(await s.call("etat-major.status.get"), { version: "0.0.1", configured: true, lastError: null });
+  assert.deepEqual(await s.call("etat-major.status.get"), { version: VERSION, configured: true, lastError: null });
 });
 
 test("refresh re-runs only when called explicitly", async () => {
