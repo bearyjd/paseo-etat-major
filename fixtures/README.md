@@ -25,5 +25,5 @@ Real output of the exporter, not edited by hand. Recorded with etat-major 0.1.0 
 
 ## exports/hostile.handcrafted.json (HAND-CRAFTED, not recorded)
 Same payload shape, but written by hand to attack the renderer: bidi and C0/C1 control characters, `<script>`,
-`[x](javascript:alert(1))`, Markdown and HTML, a 10,000-character title, oversized refs. It carries a `_note` key
+`[x](javascript:alert(1))`, invisible, tag and variation-selector characters, long combining runs, newline runs, Markdown and HTML, a 10,000-character title, oversized refs. It carries a `_note` key
 (stripped by the schema) saying so. It is never produced by the exporter.

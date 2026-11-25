@@ -7,8 +7,12 @@ import type { ErrorCode } from "./errors.ts";
 export const PLANNING_SCHEMA_MARKER = "etat-major/planning@1";
 
 export const TASK_STATES = ["draft", "ready", "in-progress", "review", "done", "blocked"] as const;
-export const TaskState = z.enum(TASK_STATES);
-export type TaskState = z.infer<typeof TaskState>;
+// An unrecognised state is tolerated and mapped to "unknown" so the screen can show an
+// "Unrecognised" lane (plan PR5: unknown state shown as-is, not dropped). Only the schema
+// marker and version are strict gates.
+export const UNKNOWN_STATE = "unknown";
+export const TaskState = z.union([z.enum(TASK_STATES), z.literal(UNKNOWN_STATE)]).catch(UNKNOWN_STATE);
+export type TaskState = (typeof TASK_STATES)[number] | typeof UNKNOWN_STATE;
 
 const NullableString = z.string().nullable();
 const Rung = z.union([z.literal("unverified"), z.array(z.string())]);
