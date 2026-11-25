@@ -85,3 +85,17 @@ test("real child: exit 2 and oversized output", async () => {
     rmSync(big.root, { recursive: true, force: true });
   }
 });
+
+test("real child: a background grandchild does not survive a successful exit", { skip: !existsSync("/proc") }, async () => {
+  const t = setup(`sleep 30 >/dev/null 2>&1 &\necho $! > sleep.pid\ncat "${FIXTURE_PATH}"`);
+  try {
+    const r = await createRunner().exportPlanning(t.settings);
+    assert.equal(r.ok, true);
+    const pid = Number(readFileSync(join(t.ws, "sleep.pid"), "utf8"));
+    assert.ok(pid > 1);
+    for (let i = 0; i < 40 && alive(pid); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.equal(alive(pid), false);
+  } finally {
+    rmSync(t.root, { recursive: true, force: true });
+  }
+});

@@ -104,6 +104,31 @@ test("--version failure modes", async () => {
   assert.equal(failure(await createRunner(big.deps).exportPlanning(SETTINGS)), "OUTPUT_TOO_LARGE");
 });
 
+test("version cache key also covers size and inode", async () => {
+  for (const change of [{ size: 99 }, { ino: 77 }]) {
+    const e = goodEntries();
+    const h = harness(okScript, e);
+    const runner = createRunner(h.deps);
+    await runner.exportPlanning(SETTINGS);
+    e[EXE] = { kind: "file", mode: 0o755, mtimeMs: 7, ...change };
+    await runner.exportPlanning(SETTINGS);
+    assert.equal(h.calls.filter((c) => c.args[0] === "--version").length, 2, JSON.stringify(change));
+  }
+});
+
+test("process group is killed after every completion path, not just timeouts", async () => {
+  const cases: Array<[string, Script]> = [
+    ["exit 0", okScript],
+    ["non-zero", (c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { code: 2 })],
+    ["bad json", (c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { stdout: "{" })],
+  ];
+  for (const [name, script] of cases) {
+    const h = harness(script);
+    await createRunner(h.deps).exportPlanning(SETTINGS);
+    assert.deepEqual(h.kills, h.calls.map((c) => [c.pid, "SIGKILL"]), name);
+  }
+});
+
 test("version cached per realpath+mtime; failures are not cached", async () => {
   const e = goodEntries();
   const h = harness(okScript, e);
@@ -133,7 +158,8 @@ test("timeout 20 s kills the process group and returns TIMEOUT", async () => {
   assert.equal(t.cleared, false);
   t.fn();
   assert.deepEqual(await p, { ok: false, code: "TIMEOUT" });
-  assert.deepEqual(h.kills, [[h.calls.at(-1)!.pid, "SIGKILL"]]);
+  assert.deepEqual(h.kills.at(-1), [h.calls.at(-1)!.pid, "SIGKILL"]);
+  assert.equal(h.kills.length, h.calls.length, "one kill per child, no double kill");
   assert.equal(h.fs.removed.length, 1);
   h.calls.at(-1)!.cb(Object.assign(new Error("killed"), { code: null }), "", ""); // late callback is ignored
 });
@@ -154,7 +180,8 @@ test("maxBuffer is 4 MiB; overflow -> OUTPUT_TOO_LARGE and group kill", async ()
   const h = harness((c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { code: MAXBUF, stdout: "partial" }));
   assert.deepEqual(await createRunner(h.deps).exportPlanning(SETTINGS), { ok: false, code: "OUTPUT_TOO_LARGE" });
   assert.equal(h.calls.at(-1)!.options.maxBuffer, 4_194_304);
-  assert.deepEqual(h.kills, [[h.calls.at(-1)!.pid, "SIGKILL"]]);
+  assert.deepEqual(h.kills.at(-1), [h.calls.at(-1)!.pid, "SIGKILL"]);
+  assert.equal(h.kills.length, h.calls.length, "one kill per child, no double kill");
 });
 
 test("non-zero exit -> EXPORT_FAILED; UI gets the code only, logger gets the redacted first line", async () => {

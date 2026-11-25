@@ -5,7 +5,7 @@ export const EXE_BASENAME = "etat-major";
 const GROUP_OR_WORLD_WRITABLE = 0o022;
 
 export type ExeCheck =
-  | { readonly ok: true; readonly realpath: string; readonly mtimeMs: number }
+  | { readonly ok: true; readonly realpath: string; readonly mtimeMs: number; readonly size: number; readonly ino: number }
   | { readonly ok: false; readonly code: "EXE_INVALID" };
 
 const BAD: ExeCheck = { ok: false, code: "EXE_INVALID" };
@@ -52,7 +52,7 @@ export async function validateExecutable(path: unknown, deps: { fs: FsLike; uid:
     for (const dir of new Set([...ancestors(path), ...ancestors(real)])) {
       if (!(await dirIsTrusted(fs, dir, deps.uid))) return BAD;
     }
-    return { ok: true, realpath: real, mtimeMs: st.mtimeMs };
+    return { ok: true, realpath: real, mtimeMs: st.mtimeMs, size: st.size, ino: st.ino };
   } catch {
     return BAD;
   }

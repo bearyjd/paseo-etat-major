@@ -18,7 +18,7 @@ const run = (entries: Record<string, never> | ReturnType<typeof good>, path: str
 
 test("accepts a regular file and reports realpath + mtime", async () => {
   const r = await run(good(), "/opt/venv/bin/etat-major");
-  assert.deepEqual(r, { ok: true, realpath: "/opt/venv/bin/etat-major", mtimeMs: 42 });
+  assert.deepEqual(r, { ok: true, realpath: "/opt/venv/bin/etat-major", mtimeMs: 42, size: 10, ino: 5 });
 });
 
 test("rejects relative, empty, non-string, dotdot and wrong basename", async () => {
@@ -66,7 +66,7 @@ test("symlink to a good file passes and reports the target realpath", async () =
     "/home/u/bin/etat-major": { kind: "link" as const, target: "/opt/venv/bin/etat-major" },
   };
   const r = await run(e as never, "/home/u/bin/etat-major");
-  assert.deepEqual(r, { ok: true, realpath: "/opt/venv/bin/etat-major", mtimeMs: 42 });
+  assert.deepEqual(r, { ok: true, realpath: "/opt/venv/bin/etat-major", mtimeMs: 42, size: 10, ino: 5 });
 });
 
 test("symlink to a writable file, or into a writable dir, fails", async () => {

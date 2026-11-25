@@ -6,6 +6,8 @@ export interface StatLike {
   readonly mode: number;
   readonly uid: number;
   readonly mtimeMs: number;
+  readonly size: number;
+  readonly ino: number;
 }
 
 export interface FsLike {

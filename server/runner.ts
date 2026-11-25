@@ -146,11 +146,11 @@ function runChild(d: RunnerDeps, file: string, args: readonly string[], cwd: str
     const options: ExecOptions = { shell: false, cwd, env, maxBuffer: MAX_BUFFER, detached: true, encoding: "utf8" };
     try {
       const child = d.exec(file, args, options, (err, stdout, stderr) => {
+        // Sweep the group on every completion so a background grandchild cannot outlive the call.
+        // A grandchild that calls setsid leaves the group and escapes this; that is unavoidable here.
+        if (!settled) killTree();
         if (!err) return done({ kind: "ok", stdout });
-        if (err.code === MAXBUFFER_CODE) {
-          killTree();
-          return done({ kind: "toolarge" });
-        }
+        if (err.code === MAXBUFFER_CODE) return done({ kind: "toolarge" });
         // String codes (ENOENT, EACCES, ...) are spawn failures; numeric or null (signal) are exits.
         done(typeof err.code === "string" ? { kind: "spawn" } : { kind: "exit", stderr });
       });
@@ -188,8 +188,8 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
   const versions = new Map<string, string>();
   let inflight: { key: string; promise: Promise<ExportResult> } | undefined;
 
-  async function checkVersion(exe: string, mtimeMs: number, cwd: string, home: string): Promise<{ version: string } | ExportResult> {
-    const cacheKey = `${exe}\0${mtimeMs}`;
+  async function checkVersion(exe: string, identity: string, cwd: string, home: string): Promise<{ version: string } | ExportResult> {
+    const cacheKey = `${exe}\0${identity}`;
     const cached = versions.get(cacheKey);
     if (cached) return { version: cached };
     const o = await runChild(d, exe, ["--version"], cwd, home);
@@ -201,7 +201,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     return { version };
   }
 
-  async function exportOnce(exe: string, mtimeMs: number, ws: string, project: string): Promise<ExportResult> {
+  async function exportOnce(exe: string, identity: string, ws: string, project: string): Promise<ExportResult> {
     let home: string;
     try {
       home = await d.fs.mkdtemp(join(d.tmpdir, "etat-major-home-"));
@@ -209,7 +209,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       return fail("EXPORT_FAILED");
     }
     try {
-      const v = await checkVersion(exe, mtimeMs, ws, home);
+      const v = await checkVersion(exe, identity, ws, home);
       if (!("version" in v)) return v;
       const args = ["export", "planning", "--json", `--workspace=${ws}`, `--project=${project}`];
       const o = await runChild(d, exe, args, ws, home);
@@ -238,7 +238,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       if (isInside(exe.realpath, ws.realpath)) return fail("EXE_INVALID");
       const key = [exe.realpath, ws.realpath, s.project].join("\0");
       if (inflight) return inflight.key === key ? inflight.promise : fail("BUSY");
-      const promise = exportOnce(exe.realpath, exe.mtimeMs, ws.realpath, s.project)
+      const promise = exportOnce(exe.realpath, `${exe.mtimeMs}:${exe.size}:${exe.ino}`, ws.realpath, s.project)
         .catch((): ExportResult => fail("EXPORT_FAILED"))
         .finally(() => {
           inflight = undefined;

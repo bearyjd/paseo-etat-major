@@ -1,7 +1,7 @@
 import type { FsLike, StatLike } from "../server/fs-like.ts";
 
 export type Entry =
-  | { kind: "file"; mode?: number; uid?: number; mtimeMs?: number }
+  | { kind: "file"; mode?: number; uid?: number; mtimeMs?: number; size?: number; ino?: number }
   | { kind: "dir"; mode?: number; uid?: number; readable?: boolean }
   | { kind: "link"; target: string };
 
@@ -25,6 +25,8 @@ export function fakeFs(entries: Record<string, Entry>): FsLike & { removed: stri
     mode: e.kind === "link" ? 0o777 : (e.mode ?? 0o755),
     uid: e.kind === "link" ? 1000 : (e.uid ?? 1000),
     mtimeMs: e.kind === "file" ? (e.mtimeMs ?? 1) : 1,
+    size: e.kind === "file" ? (e.size ?? 10) : 0,
+    ino: e.kind === "file" ? (e.ino ?? 5) : 0,
   });
   return {
     removed,
