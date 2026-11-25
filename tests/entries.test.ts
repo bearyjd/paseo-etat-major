@@ -69,6 +69,9 @@ function loadClientEntry(): { default: (c: never) => () => void } {
   const stubs: Record<string, unknown> = {
     "react/jsx-runtime": { jsx: (type: unknown, props: unknown) => ({ type, props }), jsxs: () => null, Fragment: null },
     "@getpaseo/plugin/client/ui": { SidebarRow: () => null },
+    "./client/PlanningScreen.tsx": { PlanningScreen: () => null },
+    "./client/summary-store.ts": { getSummary: () => null, subscribeSummary: () => () => {} },
+    react: { useSyncExternalStore: (_s: unknown, get: () => unknown) => get() },
     "./shared/ids.ts": ids,
     "react-native": { Text: () => null, View: () => null },
   };
