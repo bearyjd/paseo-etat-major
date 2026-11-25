@@ -8,7 +8,7 @@ import type { ErrorCode } from "../shared/errors.ts";
 import { parsePlanningJson, type PlanningPayload } from "../shared/planning-schema.ts";
 import type { FsLike } from "./fs-like.ts";
 import { redactStderrLine } from "./redact.ts";
-import { validateExecutable } from "./validate-exe.ts";
+import { isInside, validateExecutable } from "./validate-exe.ts";
 import { isValidProject, validateWorkspace } from "./validate-input.ts";
 
 export const TIMEOUT_MS = 20_000;
@@ -234,6 +234,8 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       if (!exe.ok) return fail(exe.code);
       const ws = await validateWorkspace(s.workspace, { fs: d.fs });
       if (!ws.ok) return fail(ws.code);
+      // Workspace content is writable by whoever edits the project; never run code from inside it.
+      if (isInside(exe.realpath, ws.realpath)) return fail("EXE_INVALID");
       const key = [exe.realpath, ws.realpath, s.project].join("\0");
       if (inflight) return inflight.key === key ? inflight.promise : fail("BUSY");
       const promise = exportOnce(exe.realpath, exe.mtimeMs, ws.realpath, s.project)

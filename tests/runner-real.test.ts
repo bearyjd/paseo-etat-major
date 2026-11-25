@@ -3,12 +3,13 @@ import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { trustedTmpBase } from "./tmp-base.ts";
 import { createRunner } from "../server/runner.ts";
 
 const FIXTURE_PATH = new URL("../fixtures/exports/harbor.json", import.meta.url).pathname;
 
 function setup(exportBody: string) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "pem-real-")));
+  const root = realpathSync(mkdtempSync(join(trustedTmpBase(), "pem-real-")));
   const bin = join(root, "bin");
   const ws = join(root, "ws");
   mkdirSync(bin);

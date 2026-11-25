@@ -14,6 +14,10 @@ export function fakeFs(entries: Record<string, Entry>): FsLike & { removed: stri
     const e = entries[p];
     return e?.kind === "link" ? e.target : p;
   };
+  // Ancestors of declared entries exist implicitly as owner-1000 0755 dirs unless declared.
+  const implicitDir = (p: string): Entry | undefined =>
+    p === "/" || Object.keys(entries).some((k) => k.startsWith(`${p}/`)) ? { kind: "dir" } : undefined;
+  const at = (p: string): Entry | undefined => entries[p] ?? implicitDir(p);
   const stat = (e: Entry): StatLike => ({
     isFile: () => e.kind === "file",
     isDirectory: () => e.kind === "dir",
@@ -26,17 +30,17 @@ export function fakeFs(entries: Record<string, Entry>): FsLike & { removed: stri
     removed,
     made,
     async lstat(p) {
-      const e = entries[p];
+      const e = at(p);
       if (!e) throw err("ENOENT");
       return stat(e);
     },
     async stat(p) {
-      const e = entries[resolve(p)];
+      const e = at(resolve(p));
       if (!e) throw err("ENOENT");
       return stat(e);
     },
     async realpath(p) {
-      if (!entries[p]) throw err("ENOENT");
+      if (!at(p)) throw err("ENOENT");
       return resolve(p);
     },
     async access(p) {

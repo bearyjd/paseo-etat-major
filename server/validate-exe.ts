@@ -14,9 +14,29 @@ export function isCleanAbsolute(p: unknown): p is string {
   return typeof p === "string" && p.length > 0 && !p.includes("\0") && isAbsolute(p) && !p.split("/").includes("..");
 }
 
-async function dirIsTight(fs: FsLike, dir: string): Promise<boolean> {
+const STICKY = 0o1000;
+
+// True when `child` equals `parent` or lies under it (any depth). Both must be resolved paths.
+export function isInside(child: string, parent: string): boolean {
+  const base = parent.endsWith("/") ? parent : `${parent}/`;
+  return child === parent || child.startsWith(base);
+}
+
+// A directory is trusted when the daemon user or root owns it and others cannot write into it.
+// Sticky, root-owned directories (like /tmp) are the one writable exception.
+async function dirIsTrusted(fs: FsLike, dir: string, uid: number): Promise<boolean> {
   const st = await fs.stat(dir);
-  return st.isDirectory() && (st.mode & GROUP_OR_WORLD_WRITABLE) === 0;
+  if (!st.isDirectory() || (st.uid !== uid && st.uid !== 0)) return false;
+  if ((st.mode & GROUP_OR_WORLD_WRITABLE) === 0) return true;
+  return (st.mode & STICKY) !== 0 && st.uid === 0;
+}
+
+function ancestors(path: string): string[] {
+  const out: string[] = [];
+  for (let d = dirname(path); ; d = dirname(d)) {
+    out.push(d);
+    if (d === "/") return out;
+  }
 }
 
 // Validates the configured executable. Never throws: any fs failure is EXE_INVALID.
@@ -27,9 +47,10 @@ export async function validateExecutable(path: unknown, deps: { fs: FsLike; uid:
     const real = await fs.realpath(path);
     const st = await fs.stat(real);
     if (!st.isFile() || (st.mode & GROUP_OR_WORLD_WRITABLE) !== 0 || st.uid !== deps.uid) return BAD;
-    // Both the configured location and the resolved target must sit in non-shared directories.
-    for (const dir of new Set([dirname(path), dirname(real)])) {
-      if (!(await dirIsTight(fs, dir))) return BAD;
+    // Every ancestor of both the configured location and the resolved target, up to "/", must be trusted:
+    // a writable grandparent lets someone swap the directory below it.
+    for (const dir of new Set([...ancestors(path), ...ancestors(real)])) {
+      if (!(await dirIsTrusted(fs, dir, deps.uid))) return BAD;
     }
     return { ok: true, realpath: real, mtimeMs: st.mtimeMs };
   } catch {

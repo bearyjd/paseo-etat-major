@@ -30,6 +30,16 @@ test("EXE_INVALID and WORKSPACE_INVALID, checked before any spawn", async () => 
   assert.equal(h.calls.length + h2.calls.length, 0);
 });
 
+test("an executable inside the workspace is EXE_INVALID", async () => {
+  const e = goodEntries();
+  e["/srv/ws/tools"] = { kind: "dir" };
+  e["/srv/ws/tools/etat-major"] = { kind: "file", mode: 0o755 };
+  const h = harness(okScript, e);
+  const r = await createRunner(h.deps).exportPlanning({ ...SETTINGS, executable: "/srv/ws/tools/etat-major" });
+  assert.deepEqual(r, { ok: false, code: "EXE_INVALID" });
+  assert.equal(h.calls.length, 0);
+});
+
 test("exact argv, options and env for --version and export", async () => {
   process.env["PEM_CANARY"] = "leaked";
   try {
