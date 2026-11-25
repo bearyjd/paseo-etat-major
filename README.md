@@ -34,4 +34,9 @@ Until that happens the following are all unproven:
   see `fixtures/README.md`.
 - `tests/`: `node --test --experimental-strip-types`, including a static guard over all source files.
 
+## Sanitization limits
+`sanitize.ts` strips ZWNJ and ZWJ (U+200C, U+200D) and variation selectors. Persian, Urdu and Kurdish orthography
+that needs ZWNJ, and ZWJ emoji sequences, therefore render degraded. That is acceptable for plain-text titles; revisit
+if non-Latin projects appear.
+
 See `SECURITY.md`. License: MIT.

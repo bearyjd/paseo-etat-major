@@ -49,6 +49,7 @@ export function sanitizeText(input: unknown, maxLength: number, options: Sanitiz
     const cp = ch.codePointAt(0) ?? 0;
     let out: string;
     if (cp >= 0xd800 && cp <= 0xdfff) out = REPLACEMENT; // lone surrogate
+    else if (cp === 0x09 || cp === 0x85 || cp === 0x2028 || cp === 0x2029) out = " "; // whitespace-like: one space, not deletion
     else if (cp === 0x0a && keepNewline) out = ch;
     else if (isStripped(cp) || INVISIBLE_CATEGORY.test(ch)) continue;
     else out = ch;

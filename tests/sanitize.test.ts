@@ -32,7 +32,10 @@ test("keeps only newline when allowNewline is set", () => {
 });
 
 test("strips every bidi, format, invisible and tag class", () => {
-  for (const [name, c] of STRIPPED_EXAMPLES) assert.equal(sanitizeText(`a${c}b`, 50), "ab", name);
+  for (const [name, c] of STRIPPED_EXAMPLES) {
+    if (c === ch(0x2028) || c === ch(0x2029)) continue; // become a space, see test above
+    assert.equal(sanitizeText(`a${c}b`, 50), "ab", name);
+  }
   for (const c of [...range(0x200b, 0x200f), ...range(0x202a, 0x202e), ...range(0x2060, 0x206f), ...range(0xfe00, 0xfe0f), ...range(0xfff9, 0xfffc)])
     assert.equal(sanitizeText(`a${c}b`, 50), "ab", c.codePointAt(0)!.toString(16));
   assert.equal(sanitizeText(`x${ch(0x202e)}gnp.exe${ch(0x202c)}`, 50), "xgnp.exe");
