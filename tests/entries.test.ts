@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import * as ids from "../shared/ids.ts";
 
 // Minimal fakes: only the methods the entry files are expected to call.
 // An unexpected call throws, which keeps the "registers only X" claim honest.
@@ -26,8 +27,10 @@ function fakeServer() {
 function fakeClient() {
   const added: string[] = [];
   const removed: string[] = [];
-  const reg = (kind: string) => (c: { id: string }) => {
+  const components: Record<string, (p: unknown) => { props: { onPress: () => void } }> = {};
+  const reg = (kind: string) => (c: { id: string; Component: never }) => {
     added.push(`${kind}:${c.id}`);
+    components[kind] = c.Component;
     return () => void removed.push(`${kind}:${c.id}`);
   };
   const target = { addScreen: reg("screen"), addSidebarFooterItem: reg("footer") };
@@ -37,7 +40,7 @@ function fakeClient() {
       throw new Error(`unexpected client context use: ${String(k)}`);
     },
   });
-  return { ctx, added, removed };
+  return { ctx, added, removed, components };
 }
 
 test("server entry default-exports contribute() returning cleanup, registers only status.get", async () => {
@@ -59,8 +62,9 @@ function loadClientEntry(): { default: (c: never) => () => void } {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const stubs: Record<string, unknown> = {
-    "react/jsx-runtime": { jsx: () => null, jsxs: () => null, Fragment: null },
+    "react/jsx-runtime": { jsx: (type: unknown, props: unknown) => ({ type, props }), jsxs: () => null, Fragment: null },
     "@getpaseo/plugin/client/ui": { SidebarRow: () => null },
+    "./shared/ids.ts": ids,
     "react-native": { Text: () => null, View: () => null },
   };
   const mod = { exports: {} as Record<string, unknown> };
@@ -75,10 +79,16 @@ function loadClientEntry(): { default: (c: never) => () => void } {
 test("client entry default-exports contribute() returning cleanup, registers screen and footer row", () => {
   const mod = loadClientEntry();
   assert.equal(typeof mod.default, "function");
-  const { ctx, added, removed } = fakeClient();
+  const { ctx, added, removed, components } = fakeClient();
   const cleanup = mod.default(ctx as never);
   assert.equal(typeof cleanup, "function");
   assert.deepEqual([...added].sort(), ["footer:planning-entry", "screen:planning"]);
   cleanup();
   assert.deepEqual([...removed].sort(), [...added].sort());
+  // The row must open the screen that was registered, via one shared constant.
+  const opened: unknown[] = [];
+  const element = components.footer!({ openScreen: (a: unknown) => opened.push(a), currentScreen: null });
+  element.props.onPress();
+  assert.deepEqual(opened, [{ screenId: ids.PLANNING_SCREEN_ID }]);
+  assert.ok(added.includes(`screen:${ids.PLANNING_SCREEN_ID}`));
 });

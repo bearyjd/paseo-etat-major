@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
 const SKIP_DIRS = new Set(["node_modules", ".git", "tests", "fixtures"]);
-const SOURCE = /\.(ts|tsx)$/;
+const SOURCE = /\.(m?[jt]s|cjs|tsx?)$/;
 const RUNNER = "server/runner.ts";
 
 function sources(dir: string): string[] {
@@ -20,21 +20,29 @@ const files = sources(root).map((p) => ({ rel: relative(root, p), text: readFile
 
 const CHILD = /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)["'](?:node:)?child_process["']/;
 
-const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
-  ["node:http", /["'](?:node:)?http["']/],
-  ["node:https", /["'](?:node:)?https["']/],
-  ["node:net", /["'](?:node:)?net["']/],
-  ["node:dgram", /["'](?:node:)?dgram["']/],
-  ["fetch(", /\bfetch\s*\(/],
-  ["eval(", /\beval\s*\(/],
-  ["new Function", /\bnew\s+Function\b/],
-  ["dynamic import(", /\bimport\s*\(/],
-  ["agent. hook", /\bagent\./],
-  [".createAgent", /\.createAgent\b/],
-  ["runAgent", /\brunAgent\b/],
-  [".claude", /\.claude/],
-  [".codex", /\.codex/],
-  ["zerosub", /zerosub/i],
+// [name, pattern, sample that must match]
+const FORBIDDEN: ReadonlyArray<readonly [string, RegExp, string]> = [
+  ["node:http", /["'](?:node:)?http["']/, 'import h from "node:http"'],
+  ["node:https", /["'](?:node:)?https["']/, 'import h from "https"'],
+  ["node:http2", /["'](?:node:)?http2["']/, 'import h from "node:http2"'],
+  ["node:net", /["'](?:node:)?net["']/, 'import n from "node:net"'],
+  ["node:tls", /["'](?:node:)?tls["']/, 'import t from "node:tls"'],
+  ["node:dns", /["'](?:node:)?dns(?:\/promises)?["']/, 'import d from "node:dns/promises"'],
+  ["node:dgram", /["'](?:node:)?dgram["']/, 'import d from "node:dgram"'],
+  ["node:worker_threads", /["'](?:node:)?worker_threads["']/, 'import w from "node:worker_threads"'],
+  ["fetch(", /\bfetch\s*\(/, "await fetch(url)"],
+  ["WebSocket", /\bWebSocket\b/, "new WebSocket(u)"],
+  ["XMLHttpRequest", /\bXMLHttpRequest\b/, "new XMLHttpRequest()"],
+  ["process.binding", /\bprocess\.binding\b/, "process.binding('tcp_wrap')"],
+  ["eval(", /\beval\s*\(/, "eval(x)"],
+  ["new Function", /\bnew\s+Function\b/, "new Function('a')"],
+  ["dynamic import(", /\bimport\s*\(/, "await import(x)"],
+  ["agent. hook", /\bagent\./, "ctx.agent.send()"],
+  [".createAgent", /\.createAgent\b/, "api.createAgent({})"],
+  ["runAgent", /\brunAgent\b/, "runAgent()"],
+  [".claude", /\.claude/, 'join(home, ".claude")'],
+  [".codex", /\.codex/, '"~/.codex"'],
+  ["zerosub", /zerosub/i, "zerosub"],
 ];
 
 test("guard scans at least the entry files", () => {
@@ -55,28 +63,13 @@ for (const [name, re] of FORBIDDEN) {
   });
 }
 
-test("guard regexes actually detect violations", () => {
+test("every forbidden pattern matches its own violation sample", () => {
+  for (const [name, re, sample] of FORBIDDEN) assert.ok(re.test(sample), `pattern for ${name} missed its sample`);
+});
+
+test("child_process pattern catches ESM, CJS and .mjs-style requires", () => {
   assert.ok(CHILD.test('import { execFile } from "node:child_process";'));
   assert.ok(CHILD.test("const c = require('child_process')"));
-  for (const [, re] of FORBIDDEN) assert.ok(re.source.length > 0);
-  const sample: Record<string, string> = {
-    "node:http": 'import h from "node:http"',
-    "node:https": 'import h from "https"',
-    "node:net": 'import n from "node:net"',
-    "node:dgram": 'import d from "node:dgram"',
-    "fetch(": "await fetch(url)",
-    "eval(": "eval(x)",
-    "new Function": "new Function('a')",
-    "dynamic import(": "await import(x)",
-    "agent. hook": "ctx.agent.send()",
-    ".createAgent": "api.createAgent({})",
-    runAgent: "runAgent()",
-    ".claude": 'join(home, ".claude")',
-    ".codex": '"~/.codex"',
-    zerosub: "zerosub",
-  };
-  for (const [name, re] of FORBIDDEN) {
-    const s = sample[name === "runAgent" ? "runAgent" : name];
-    assert.ok(s && re.test(s), `regex for ${name} must match its sample`);
-  }
+  assert.ok(CHILD.test('const { spawn } = require("node:child_process");'));
+  assert.ok(SOURCE.test("evil.mjs") && SOURCE.test("evil.cjs") && SOURCE.test("evil.js"));
 });
