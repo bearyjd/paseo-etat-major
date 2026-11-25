@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { ERROR_CODES } from "../shared/errors.ts";
 import { PlanningPayload, TASK_STATES } from "../shared/planning-schema.ts";
 import { CAPS } from "../shared/sanitize.ts";
-import { LOAD_ERROR_VIEW, STALE_AFTER_MS, buildPlanningVm, errorView, footerSummary } from "../client/view-model.ts";
+import { LOAD_ERROR_VIEW, STALE_AFTER_MS, buildPlanningVm, errorView, footerSummary, freshness, settleLoad, type Loaded } from "../client/view-model.ts";
 
 const obj = (name: string) => JSON.parse(readFileSync(new URL(`../fixtures/exports/${name}`, import.meta.url), "utf8"));
 const parse = (name: string) => PlanningPayload.parse(obj(name));
@@ -200,4 +200,36 @@ test("a failed call to the host has its own fixed state, distinct from every exp
   const e = LOAD_ERROR_VIEW;
   assert.ok(e.sentence.length > 10 && e.hint.length > 10);
   for (const code of ERROR_CODES) assert.notEqual(errorView(code).sentence, e.sentence);
+});
+
+test("freshness is derived from the raw export time and a later clock, without rebuilding the data", () => {
+  const v = vm();
+  assert.equal(v.exportedAt, exportedAt);
+  assert.equal(freshness(v.exportedAt, T0 + 60_000).stale, null);
+  assert.equal(freshness(v.exportedAt, T0 + 60_000).exportedAtText, "1 min ago");
+  const later = freshness(v.exportedAt, T0 + STALE_AFTER_MS + 1);
+  assert.match(later.stale!.sentence, /^Possibly stale: exported 15 min ago/);
+  assert.equal(freshness("not a date", T0).exportedAtText, "unknown");
+});
+
+test("a failed forced refresh keeps the loaded board and carries the error as a banner", () => {
+  const prev: Loaded = { kind: "vm", vm: vm() };
+  const failed: Loaded = { kind: "error", view: errorView("BUSY"), code: "BUSY" };
+  const kept = settleLoad(prev, failed, true);
+  assert.equal(kept.kind, "vm");
+  if (kept.kind === "vm") {
+    assert.equal(kept.vm, (prev as { vm: unknown }).vm);
+    assert.deepEqual(kept.refreshError, errorView("BUSY"));
+  }
+  const host = settleLoad(prev, { kind: "error", view: LOAD_ERROR_VIEW, code: null }, true);
+  assert.equal(host.kind === "vm" && host.refreshError?.sentence, LOAD_ERROR_VIEW.sentence);
+});
+
+test("settleLoad: errors still replace when nothing is loaded or the load is not a forced refresh; success clears the banner", () => {
+  const failed: Loaded = { kind: "error", view: errorView("TIMEOUT"), code: "TIMEOUT" };
+  assert.equal(settleLoad({ kind: "loading" }, failed, true), failed);
+  assert.equal(settleLoad({ kind: "vm", vm: vm() }, failed, false), failed);
+  const ok: Loaded = { kind: "vm", vm: vm() };
+  const withBanner: Loaded = { kind: "vm", vm: vm(), refreshError: errorView("BUSY") };
+  assert.equal(settleLoad(withBanner, ok, true), ok);
 });

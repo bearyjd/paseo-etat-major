@@ -4,7 +4,6 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/ui";
 import { planningGet, planningRefresh } from "../shared/contracts.ts";
-import type { ErrorCode } from "../shared/errors.ts";
 import { SettingsPage } from "./SettingsPage.tsx";
 import { publishSummary } from "./summary-store.ts";
 import {
@@ -12,6 +11,9 @@ import {
   buildPlanningVm,
   errorView,
   footerSummary,
+  freshness,
+  settleLoad,
+  type Loaded,
   type LaneVm,
   type PlanningVm,
   type TaskRow,
@@ -20,12 +22,8 @@ import {
 // Every string below is either a fixed literal or comes out of view-model.ts already sanitized,
 // and is rendered as plain Text: no Markdown, no links, no images.
 
-type Loaded =
-  | { readonly kind: "loading" }
-  | { readonly kind: "vm"; readonly vm: PlanningVm }
-  | { readonly kind: "error"; readonly view: { sentence: string; hint: string }; readonly code: ErrorCode | null };
-
 const MIN_TAP = 44;
+const TICK_MS = 60_000;
 const MAX_WIDTH = 720;
 
 function Button({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
@@ -128,7 +126,16 @@ export function PlanningScreen({ params, layout }: PluginScreenProps) {
   const alive = useRef(true);
   const [page, setPage] = useState<"planning" | "settings">(params.initialPage === "settings" ? "settings" : "planning");
   const [loaded, setLoaded] = useState<Loaded>({ kind: "loading" });
+  const loadedRef = useRef<Loaded>(loaded);
   const [running, setRunning] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  // Freshness is derived at render time from the raw export time, so a screen left open
+  // still ages: re-render once a minute.
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
 
   const run = useCallback(async (force: boolean) => {
     setRunning(true);
@@ -142,8 +149,10 @@ export function PlanningScreen({ params, layout }: PluginScreenProps) {
       next = { kind: "error", view: LOAD_ERROR_VIEW, code: null };
     }
     if (!alive.current) return;
-    publishSummary(next.kind === "vm" ? footerSummary(next.vm) : null);
-    setLoaded(next);
+    const settled = settleLoad(loadedRef.current, next, force);
+    loadedRef.current = settled;
+    publishSummary(settled.kind === "vm" ? footerSummary(settled.vm) : null);
+    setLoaded(settled);
     setRunning(false);
   }, []);
 
@@ -157,12 +166,13 @@ export function PlanningScreen({ params, layout }: PluginScreenProps) {
 
   const pad = layout.compact ? 12 : 24;
   const vm = loaded.kind === "vm" ? loaded.vm : null;
+  const fresh = vm ? freshness(vm.exportedAt, nowMs) : null;
   return (
     <ScrollView contentContainerStyle={{ padding: pad }}>
       <View style={{ width: "100%", maxWidth: MAX_WIDTH, alignSelf: "center", gap: 16 }}>
         <View style={{ gap: 4 }}>
           <Text style={{ fontSize: 20, fontWeight: "700" }}>{vm ? `État-major · ${vm.project}` : "État-major"}</Text>
-          {vm ? <Text style={{ opacity: 0.7 }}>{`Exported ${vm.exportedAtText} · ${vm.version}`}</Text> : null}
+          {vm ? <Text style={{ opacity: 0.7 }}>{`Exported ${fresh!.exportedAtText} · ${vm.version}`}</Text> : null}
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
             <Button label={running ? "Trying again" : "Try again"} disabled={running || page === "settings"} onPress={() => void run(true)} />
             <Button label={page === "settings" ? "Planning" : "Settings"} onPress={() => setPage(page === "settings" ? "planning" : "settings")} />
@@ -188,10 +198,16 @@ export function PlanningScreen({ params, layout }: PluginScreenProps) {
                 ))}
               </View>
             ) : null}
-            {loaded.vm.stale ? (
+            {loaded.refreshError ? (
+              <View accessibilityRole="alert" style={{ gap: 2, borderWidth: 1, padding: 12 }}>
+                <Text style={{ fontWeight: "600" }}>{loaded.refreshError.sentence}</Text>
+                <Text>{`${loaded.refreshError.hint} The board below is the last export that loaded.`}</Text>
+              </View>
+            ) : null}
+            {fresh!.stale ? (
               <View style={{ gap: 2, borderWidth: 1, padding: 12 }}>
-                <Text style={{ fontWeight: "600" }}>{loaded.vm.stale.sentence}</Text>
-                <Text>{loaded.vm.stale.hint}</Text>
+                <Text style={{ fontWeight: "600" }}>{fresh!.stale.sentence}</Text>
+                <Text>{fresh!.stale.hint}</Text>
               </View>
             ) : null}
             <Board vm={loaded.vm} />

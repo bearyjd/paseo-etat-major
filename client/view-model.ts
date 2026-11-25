@@ -61,6 +61,7 @@ export interface FeatureRow {
 export interface PlanningVm {
   readonly project: string;
   readonly version: string;
+  readonly exportedAt: string;
   readonly exportedAtText: string;
   readonly stale: { readonly sentence: string; readonly hint: string } | null;
   readonly issues: { readonly heading: string; readonly rows: readonly IssueRow[] } | null;
@@ -83,7 +84,7 @@ function ageText(ageMs: number): string {
   return `${Math.floor(ageMs / DAY)} d ago`;
 }
 
-function freshness(exportedAt: string, nowMs: number): Pick<PlanningVm, "exportedAtText" | "stale"> {
+export function freshness(exportedAt: string, nowMs: number): Pick<PlanningVm, "exportedAtText" | "stale"> {
   const at = Date.parse(exportedAt);
   if (!Number.isFinite(at)) {
     return {
@@ -149,6 +150,7 @@ export function buildPlanningVm(input: PlanningInput, now: () => number = Date.n
   return {
     project: title(data.project),
     version: title(input.version),
+    exportedAt: input.exportedAt,
     ...freshness(input.exportedAt, now()),
     issues: issues(data.issues),
     lanes: lanes(data.tasks),
@@ -202,3 +204,16 @@ export const LOAD_ERROR_VIEW = {
   sentence: "Could not reach the plugin host.",
   hint: "Check that the plugin is running on the host, then tap Try again.",
 } as const;
+
+export type ErrorView = { readonly sentence: string; readonly hint: string };
+export type Loaded =
+  | { readonly kind: "loading" }
+  | { readonly kind: "vm"; readonly vm: PlanningVm; readonly refreshError?: ErrorView }
+  | { readonly kind: "error"; readonly view: ErrorView; readonly code: ErrorCode | null };
+
+// A failed "Try again" must not wipe a board that was valid and on screen: keep it and carry
+// the error as a banner. Without data yet, or on a plain load, the error replaces the view.
+export function settleLoad(prev: Loaded, next: Loaded, force: boolean): Loaded {
+  if (force && prev.kind === "vm" && next.kind === "error") return { kind: "vm", vm: prev.vm, refreshError: next.view };
+  return next;
+}
