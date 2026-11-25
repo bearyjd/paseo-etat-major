@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PlanningPayload, TASK_STATES, parsePlanningJson } from "../shared/planning-schema.ts";
 import { CAPS, sanitizeText } from "../shared/sanitize.ts";
+import { INDEPENDENT_FORBIDDEN, STRIPPED_EXAMPLES } from "./forbidden.ts";
 
 const load = (name: string): string => readFileSync(new URL(`../fixtures/exports/${name}`, import.meta.url), "utf8");
 const obj = (name: string) => JSON.parse(load(name));
@@ -116,14 +117,47 @@ test("each of the six task states is accepted", () => {
   }
 });
 
-// Decision: an unknown task state is rejected at the schema level (SCHEMA_MISMATCH),
-// because the schema marker already gates compatibility; a new state needs an @2 marker.
-test("an unknown task state is rejected", () => {
-  for (const state of ["running", "In-Progress", "", "planned", null, 3]) {
+// Decision: the schema marker and version stay strict, but an unrecognised task state is
+// tolerated and mapped to the literal "unknown" so the screen can show an "Unrecognised" lane
+// (plan PR5: unknown state shown as-is, not dropped).
+test("an unknown task state parses as \"unknown\"", () => {
+  for (const state of ["running", "In-Progress", "", "planned", null, 3, {}, []]) {
     const p = clone(obj("harbor.json"));
     p.tasks[0].state = state;
-    assert.deepEqual(parsePlanningJson(JSON.stringify(p)), { ok: false, code: "SCHEMA_MISMATCH" }, String(state));
+    const r = parsePlanningJson(JSON.stringify(p));
+    assert.equal(r.ok, true, String(state));
+    if (r.ok) {
+      assert.equal(r.data.tasks[0].state, "unknown", String(state));
+      assert.equal(r.data.tasks[0].id, p.tasks[0].id);
+    }
   }
+});
+
+test("a populated component, architecture row and issue are typed", () => {
+  const component = { id: "c1", label: "Sensors", kind: "module", paths: ["src/sensors"], parent: null, provenance: "human", owner: "maintainer", summary: null, summary_provenance: null, reviewed: true };
+  const mk = () => {
+    const p = clone(obj("harbor.json"));
+    p.components = [clone(component)];
+    p.issues = [{ path: "x", field: "f", message: "m", severity: "error", blocking: true }];
+    return p;
+  };
+  const ok = PlanningPayload.parse(mk());
+  assert.deepEqual(ok.components, [component]);
+  assert.equal(ok.features[0].architecture[0].target, null);
+  assert.equal(ok.issues[0].blocking, true);
+  const mutate = (f: (p: ReturnType<typeof mk>) => void) => {
+    const p = mk();
+    f(p);
+    return PlanningPayload.safeParse(p).success;
+  };
+  for (const bad of ["yes", 1, null, undefined]) assert.equal(mutate((p) => { p.components[0].reviewed = bad; }), false, `reviewed ${String(bad)}`);
+  assert.equal(mutate((p) => { p.components[0].paths = "src"; }), false);
+  assert.equal(mutate((p) => { p.components[0].paths = [1]; }), false);
+  assert.equal(mutate((p) => { p.components[0].parent = 3; }), false);
+  assert.equal(mutate((p) => { p.issues[0].blocking = "true"; }), false);
+  assert.equal(mutate((p) => { p.issues[0].field = 1; }), false);
+  assert.equal(mutate((p) => { p.features[0].architecture[0].target = 1; }), false);
+  assert.equal(mutate((p) => { p.features[0].architecture[0].ref = null; }), false);
 });
 
 test("hostile fixture parses and keeps its payload strings for sanitize to handle", () => {
@@ -135,24 +169,33 @@ test("hostile fixture parses and keeps its payload strings for sanitize to handl
   assert.match(r.data.features[0].title, /\u202e/);
 });
 
-test("hostile fixture: sanitize neutralises every string without throwing", () => {
+
+test("hostile fixture: sanitize neutralises every string, judged by an independent oracle", () => {
   const r = parsePlanningJson(load("hostile.handcrafted.json"));
   assert.equal(r.ok, true);
   if (!r.ok) return;
-  const BAD = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/;
+  const raw: string[] = [];
   const seen: string[] = [];
   const walk = (v: unknown, key: string): void => {
     if (typeof v === "string") {
       const cap = key === "outcome" ? CAPS.prose : key === "title" ? CAPS.title : CAPS.ref;
       const out = sanitizeText(v, cap, { allowNewline: key === "outcome" });
-      assert.doesNotMatch(out.replaceAll("\n", ""), BAD, key);
+      assert.doesNotMatch(out.replaceAll("\n", ""), INDEPENDENT_FORBIDDEN, key);
+      assert.doesNotMatch(out, /\p{M}{4}/u, key);
+      assert.doesNotMatch(out, /\n{3}/, key);
       assert.ok(Array.from(out).length <= cap, key);
+      raw.push(v);
       seen.push(out);
     } else if (Array.isArray(v)) v.forEach((x) => walk(x, key));
     else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
   };
   walk(r.data, "");
   assert.ok(seen.length > 20);
+  // The fixture must really contain every stripped class, or the check above proves nothing.
+  const all = raw.join("");
+  for (const [name, c] of STRIPPED_EXAMPLES) assert.ok(all.includes(c), `fixture lacks ${name}`);
+  assert.match(all, /\p{M}{4}/u, "fixture lacks a long combining run");
+  assert.match(all, /\n{3}/, "fixture lacks a newline run");
   assert.equal(sanitizeText(r.data.tasks[0].title, CAPS.title).length, 200);
   // Markup is not rewritten here; rendering as plain text is the defence (plan section 4).
   assert.ok(seen.some((s) => s.includes("javascript:alert(1)")));
