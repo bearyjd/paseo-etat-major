@@ -76,7 +76,7 @@ function Lane({ lane, onOpen }: { lane: LaneVm; onOpen: (id: string) => void }) 
   return (
     <View style={{ gap: 4 }}>
       {lane.tasks.map((t) => (
-        <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={`${t.title}, ${t.unverifiedCount} of 7 unverified`} onPress={() => onOpen(t.id)} style={{ minHeight: MIN_TAP, justifyContent: "center", paddingVertical: 6 }}>
+        <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`${t.title}, ${t.unverifiedCount} of 7 unverified`} onPress={() => onOpen(t.key)} style={{ minHeight: MIN_TAP, justifyContent: "center", paddingVertical: 6 }}>
           <Text style={{ fontWeight: "600" }}>{t.title}</Text>
           <Text style={{ opacity: 0.6 }}>{`${t.id} · ${t.unverifiedCount} of 7 unverified`}</Text>
         </Pressable>
@@ -89,7 +89,7 @@ function Board({ vm }: { vm: PlanningVm }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const lane = vm.lanes.find((l) => l.state === picked) ?? vm.lanes.find((l) => l.count > 0) ?? vm.lanes[0]!;
-  const task = taskId === null ? undefined : lane.tasks.find((t) => t.id === taskId);
+  const task = taskId === null ? undefined : lane.tasks.find((t) => t.key === taskId);
   if (task) return <TaskDetail task={task} lane={lane.label} onBack={() => setTaskId(null)} />;
   return (
     <View style={{ gap: 12 }}>

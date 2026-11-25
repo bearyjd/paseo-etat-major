@@ -31,6 +31,8 @@ export interface EvidenceRow {
   readonly refs: readonly string[];
 }
 export interface TaskRow {
+  // Unique per task and never rendered: displayed ids can collide after sanitizing.
+  readonly key: string;
   readonly id: string;
   readonly title: string;
   readonly evidence: readonly EvidenceRow[];
@@ -111,13 +113,14 @@ function evidenceRows(evidence: PlanningPayload["tasks"][number]["evidence"]): E
 
 function lanes(tasks: PlanningPayload["tasks"]): LaneVm[] {
   const order: readonly TaskState[] = [...TASK_STATES, UNKNOWN_STATE];
+  const keyed = tasks.map((t, i) => ({ t, key: `${i}:${ref(t.id)}` }));
   return order
     .map((state): LaneVm => {
-      const rows = tasks
-        .filter((t) => t.state === state)
-        .map((t): TaskRow => {
+      const rows = keyed
+        .filter(({ t }) => t.state === state)
+        .map(({ t, key }): TaskRow => {
           const evidence = evidenceRows(t.evidence);
-          return { id: ref(t.id), title: title(t.title), evidence, unverifiedCount: evidence.filter((e) => e.unverified).length };
+          return { key, id: ref(t.id), title: title(t.title), evidence, unverifiedCount: evidence.filter((e) => e.unverified).length };
         });
       const noun = state === UNKNOWN_STATE ? "unrecognised" : LANE_LABELS[state].toLowerCase().replace(" ", "-");
       return { state, label: LANE_LABELS[state], count: rows.length, tasks: rows, emptyLine: `No ${noun} tasks.` };
@@ -186,8 +189,8 @@ export function footerSummary(vm: PlanningVm | null): { short: string; label: st
 
 const ERROR_VIEWS: Record<ErrorCode, { sentence: string; hint: string }> = {
   NOT_CONFIGURED: { sentence: "État-major is not set up yet.", hint: "Open Settings and set the executable, workspace and project." },
-  EXE_INVALID: { sentence: "The configured executable cannot be used.", hint: "Set an absolute path to etat-major in Settings. It must be a regular file that only its owner can write." },
-  VERSION_UNSUPPORTED: { sentence: "This etat-major version is not supported.", hint: "Install a version in the range this plugin supports, then tap Try again." },
+  EXE_INVALID: { sentence: "The configured executable cannot be used.", hint: "Set an absolute path to etat-major in Settings. It must be a regular file that only its owner can write, inside a venv (user-site packages are not loaded)." },
+  VERSION_UNSUPPORTED: { sentence: "This etat-major version is not supported.", hint: "Install a version in the range this plugin supports in a venv (user-site packages are not loaded), then tap Try again." },
   WORKSPACE_INVALID: { sentence: "The workspace folder cannot be read.", hint: "Set an absolute path to an existing workspace directory in Settings." },
   TIMEOUT: { sentence: "The export took too long and was stopped.", hint: "Check the workspace size, then tap Try again." },
   OUTPUT_TOO_LARGE: { sentence: "The export was larger than this plugin accepts.", hint: "Reduce the project size or run the export by hand to inspect it." },

@@ -68,3 +68,8 @@ test("SECURITY.md states the final trust points", () => {
   assert.match(security, /read-only/i);
   assert.doesNotMatch(security, /\bplanned\b/i);
 });
+
+test("README says 0.1.0 passes no PR input, so In progress and Review stay empty", () => {
+  assert.match(readme, /0\.1\.0 never passes `--prs`, `--releases` or `--repo`/);
+  assert.match(readme, /`In progress` and `Review` stay empty/);
+});

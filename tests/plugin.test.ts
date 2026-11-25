@@ -148,8 +148,8 @@ test("cleanup clears the cache and drops results of exports still in flight", as
   await s.call("etat-major.planning.get");
   const before = execCount(s.h);
   s.cleanup();
-  await s.call("etat-major.planning.get");
-  assert.ok(execCount(s.h) > before);
+  assert.deepEqual(await s.call("etat-major.planning.get"), { ok: false, code: "EXPORT_FAILED" });
+  assert.equal(execCount(s.h), before, "a get after cleanup starts no export");
 
   let release: (r: ExportResult) => void = () => {};
   let runs = 0;
@@ -161,9 +161,40 @@ test("cleanup clears the cache and drops results of exports still in flight", as
   cleanup();
   release({ ok: false, code: "TIMEOUT" });
   await pending;
-  void t.call("etat-major.planning.get");
+  await t.call("etat-major.planning.get");
+  assert.equal(runs, 1); // closed: no new export is started
+});
+
+test("the cache holds a single entry: A, B, A exports three times", async () => {
+  let exports = 0;
+  const runner: Runner = { exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, runner);
+  await s.call("etat-major.planning.get");
+  s.state.values = { ...GOOD, project: "other" };
+  await s.call("etat-major.planning.get");
+  s.state.values = GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports, 3);
+  await s.call("etat-major.planning.get");
+  assert.equal(exports, 3, "same key again is cached");
+});
+
+test("a late result for old settings does not overwrite lastError", async () => {
+  const releases: Array<(r: ExportResult) => void> = [];
+  const runner: Runner = { exportPlanning: () => new Promise<ExportResult>((res) => releases.push(res)) };
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, runner);
+  const slowA = s.call("etat-major.planning.get");
   await new Promise((r) => setImmediate(r));
-  assert.equal(runs, 2); // the late result was not cached, so this get ran again
+  s.state.values = { ...GOOD, project: "other" };
+  const fastB = s.call("etat-major.planning.get");
+  await new Promise((r) => setImmediate(r));
+  releases[1]!({ ok: false, code: "BAD_JSON" });
+  await fastB;
+  releases[0]!({ ok: false, code: "TIMEOUT" });
+  await slowA;
+  assert.equal((await s.call("etat-major.status.get")).lastError, "BAD_JSON");
 });
 
 test("settings schema rejects relative paths, traversal and bad project ids without echoing values", () => {
@@ -195,4 +226,14 @@ test("no setting value is logged raw", async () => {
   assert.ok(logs.length > 0);
   const text = JSON.stringify(logs);
   for (const secret of [EXE, WS, "harbor"]) assert.ok(!text.includes(secret), `log leaked ${secret}`);
+});
+
+test("settings paths accept 4096 characters and reject 4097, for executable and workspace", () => {
+  const exe = (n: number) => "/" + "a".repeat(n - "/etat-major".length - 1) + "/etat-major";
+  const ws = (n: number) => "/" + "a".repeat(n - 1);
+  assert.equal(exe(4096).length, 4096);
+  assert.ok(SettingsSchema.safeParse({ executable: exe(4096) }).success);
+  assert.equal(SettingsSchema.safeParse({ executable: exe(4097) }).success, false);
+  assert.ok(SettingsSchema.safeParse({ workspace: ws(4096) }).success);
+  assert.equal(SettingsSchema.safeParse({ workspace: ws(4097) }).success, false);
 });

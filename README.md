@@ -9,7 +9,9 @@ Mobile-first single column (`client/PlanningScreen.tsx`). Header: project, expor
 "Try again" button (the only refresh; disabled while an export runs; no polling). Below it, in order: an issues banner
 (blocking first), a "possibly stale" banner when the export is older than 15 minutes by the local clock, then one task
 lane at a time under tabs with a count each (Draft, Ready, In progress, Review, Done, Blocked, plus Unrecognised only
-when the payload has a state this plugin does not know). Tapping a task shows its seven evidence fields; `unverified`
+when the payload has a state this plugin does not know). 0.1.0 never passes `--prs`, `--releases` or `--repo` to the
+exporter, so only the Draft, Ready, Blocked and Done lanes are populated; `In progress` and `Review` stay empty until a
+later release adds recorded PR input. Tapping a task shows its seven evidence fields; `unverified`
 is a muted pill, never a percentage. Features and sources follow. Each error code has one fixed sentence and hint.
 Settings (executable, workspace, project) open from the same screen (`initialPage=settings` param or the Settings
 button). The sidebar row shows a task-count summary (with a spoken label) only after the screen has loaded data; it
@@ -24,7 +26,8 @@ Maintainer, on phone and web; record client and versions. Tick each item only af
 1. Install from a tag via `git:`; `paseo plugin ls` shows it running; no smoke plugin left.
 2. Sidebar row visible (phone: open the sidebar first); tapping it opens Planning.
 3. Unconfigured: a clear `NOT_CONFIGURED` hint. Bad exe path, `/bin/sh`, a writable copy: `EXE_INVALID`.
-4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand.
+4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand (without
+   `--prs`, `--releases` or `--repo`). Draft, Ready, Blocked and Done show tasks; In progress and Review show none.
 5. Refresh after editing a task file and `git pull`: the change shows after Try again; nothing refreshes without a tap.
 6. Hostile workspace (from the fixtures): no styled text, no link, no reordered text, long title truncated.
 7. Rename the venv: `EXE_INVALID`, then restore. Wrong workspace path: `WORKSPACE_INVALID`.

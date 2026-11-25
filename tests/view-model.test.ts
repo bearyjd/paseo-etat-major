@@ -194,6 +194,7 @@ test("every error code has one fixed sentence and one hint, all distinct", () =>
   assert.equal(sentences.size, ERROR_CODES.length);
   assert.match(errorView("NOT_CONFIGURED").hint, /Settings/);
   assert.match(errorView("EXE_INVALID").hint, /absolute path/);
+  for (const code of ["EXE_INVALID", "VERSION_UNSUPPORTED"] as const) assert.match(errorView(code).hint, /venv.*user-site|user-site.*venv/, code);
 });
 
 test("a failed call to the host has its own fixed state, distinct from every export error", () => {
@@ -232,4 +233,17 @@ test("settleLoad: errors still replace when nothing is loaded or the load is not
   const ok: Loaded = { kind: "vm", vm: vm() };
   const withBanner: Loaded = { kind: "vm", vm: vm(), refreshError: errorView("BUSY") };
   assert.equal(settleLoad(withBanner, ok, true), ok);
+});
+
+test("task rows have unique keys even when different ids sanitize to the same string", () => {
+  const data = clone(parse("harbor-prs.json"));
+  const base = data.tasks[0]!;
+  data.tasks = [
+    { ...clone(base), id: "T-1\u0007", state: "ready" },
+    { ...clone(base), id: "T-1\u0008", state: "ready" },
+  ] as never;
+  const rows = vm(data).lanes.flatMap((l) => l.tasks);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0]!.id, rows[1]!.id, "precondition: displayed ids collide");
+  assert.equal(new Set(rows.map((r) => r.key)).size, 2);
 });
