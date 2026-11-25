@@ -25,7 +25,11 @@ Until that happens the following are all unproven:
 
 ## Layout
 - `index.server.ts`, `index.client.tsx`: thin `contribute()` wiring, both return cleanup functions.
-- `shared/`: RPC contracts and the fixed error codes.
+- `shared/`: RPC contracts, the fixed error codes, the zod schema for the `etat-major/planning@1` export
+  (`planning-schema.ts`; rejects other markers, `version` other than 1 and unknown task states, strips unknown keys)
+  and `sanitize.ts` (pure control and bidi stripping with length caps).
+- `fixtures/`: a synthetic workspace, exports recorded from the real exporter and a hand-crafted hostile payload;
+  see `fixtures/README.md`.
 - `tests/`: `node --test --experimental-strip-types`, including a static guard over all source files.
 
 See `SECURITY.md`. License: MIT.
