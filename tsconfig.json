@@ -15,7 +15,6 @@
       "node",
       "react"
     ],
-    "resolveJsonModule": true,
     "rewriteRelativeImportExtensions": false
   },
   "include": [
@@ -24,7 +23,6 @@
     "shared/**/*.ts",
     "server/**/*.ts",
     "client/**/*.ts*",
-    "tests/**/*.ts",
-    "package.json"
+    "tests/**/*.ts"
   ]
 }

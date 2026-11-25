@@ -9,13 +9,19 @@ returning `{version, configured:false}`. Raw TypeScript, no bundling.
     npm run typecheck
     npm test
 
-## Install-time dependency resolution (UNPROVEN)
-`zod` is a runtime dependency, so `paseo-plugin.json` declares
-`"build": [["npm","ci","--omit=dev","--ignore-scripts"]]`. This build step is UNPROVEN: it has not been
-exercised by a real `git:` install. It is validated only once installed via git on the target host and the
-sidebar row appears. Until then treat any `zod` resolution error at install time as the known risk.
-`index.server.ts` also imports `package.json` (JSON import) for the version; that is likewise unproven under
-the daemon's loader.
+## Unproven
+PR1's explicit gate is a real `git:` install of this repo on a host, after which the sidebar row appears.
+Until that happens the following are all unproven:
+
+- The manifest `build` step `[["npm","ci","--omit=dev","--ignore-scripts"]]` has never run in a real git install.
+- `--omit=dev` drops every devDependency, including `@getpaseo/plugin`, yet `shared/contracts.ts` imports
+  `defineRpc` from it at runtime. The proven smoke plugin listed `@getpaseo/plugin` and `zod` both in
+  devDependencies and was installed with a full `npm install`, so it only proves that a fully populated
+  `node_modules` loads. Whether the host supplies `@getpaseo/plugin` itself (so devDependencies is fine) is
+  unknown. If the install fails to resolve it, move `@getpaseo/plugin` to `dependencies` (still pinned 0.17.4).
+  Here `@getpaseo/plugin` stays in devDependencies, matching the smoke plugin.
+- The version is a constant in `shared/version.ts`, checked against `package.json` by a test (no JSON import).
+- CI actions are referenced by tag, not by commit SHA (SHAs could not be verified offline).
 
 ## Layout
 - `index.server.ts`, `index.client.tsx`: thin `contribute()` wiring, both return cleanup functions.

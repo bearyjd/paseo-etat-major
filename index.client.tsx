@@ -5,6 +5,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Text, View } from "react-native";
+import { PLANNING_SCREEN_ID } from "./shared/ids.ts";
 
 function PlanningScreen(_: PluginScreenProps) {
   return (
@@ -21,14 +22,14 @@ function PlanningEntry({ openScreen, currentScreen }: PluginSidebarItemProps) {
     <SidebarRow
       icon="Compass"
       label="État-major"
-      active={currentScreen?.screenId === "planning"}
-      onPress={() => openScreen({ screenId: "planning" })}
+      active={currentScreen?.screenId === PLANNING_SCREEN_ID}
+      onPress={() => openScreen({ screenId: PLANNING_SCREEN_ID })}
     />
   );
 }
 
 export default function contribute(client: PluginClientContext) {
-  const removeScreen = client.addScreen({ id: "planning", title: "État-major", Component: PlanningScreen });
+  const removeScreen = client.addScreen({ id: PLANNING_SCREEN_ID, title: "État-major", Component: PlanningScreen });
   const removeEntry = client.addSidebarFooterItem({
     id: "planning-entry",
     title: "État-major",

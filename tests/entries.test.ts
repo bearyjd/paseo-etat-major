@@ -89,6 +89,6 @@ test("client entry default-exports contribute() returning cleanup, registers scr
   const opened: unknown[] = [];
   const element = components.footer!({ openScreen: (a: unknown) => opened.push(a), currentScreen: null });
   element.props.onPress();
-  assert.deepEqual(opened, [{ screenId: ids.PLANNING_SCREEN_ID }]);
+  assert.equal(JSON.stringify(opened), JSON.stringify([{ screenId: ids.PLANNING_SCREEN_ID }]));
   assert.ok(added.includes(`screen:${ids.PLANNING_SCREEN_ID}`));
 });
