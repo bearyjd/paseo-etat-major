@@ -6,19 +6,28 @@ import { INDEPENDENT_FORBIDDEN, STRIPPED_EXAMPLES } from "./forbidden.ts";
 const ch = (...cps: number[]): string => String.fromCodePoint(...cps);
 const range = (a: number, b: number): string[] => Array.from({ length: b - a + 1 }, (_, i) => ch(a + i));
 
+test("tab, NEL, LS and PS become a single space, not deletion", () => {
+  for (const c of [0x09, 0x85, 0x2028, 0x2029]) {
+    assert.equal(sanitizeText(`foo${ch(c)}bar`, 50), "foo bar", `U+${c.toString(16)}`);
+    assert.equal(sanitizeText(`foo${ch(c)}bar`, 50, { allowNewline: true }), "foo bar", `U+${c.toString(16)}`);
+  }
+  assert.equal(sanitizeText("a\tb", 50), "a b");
+  assert.equal(sanitizeText("foo bar", 50), "foo bar");
+});
+
 test("caps are 200 / 2000 / 256", () => {
   assert.deepEqual({ ...CAPS }, { title: 200, prose: 2000, ref: 256 });
 });
 
 test("strips every C0 and C1 control, newline included by default", () => {
   for (let c = 0; c <= 0x9f; c++) {
-    if (c > 0x1f && c < 0x7f) continue;
+    if ((c > 0x1f && c < 0x7f) || c === 0x09 || c === 0x85) continue;
     assert.equal(sanitizeText(`a${ch(c)}b`, 50), "ab", `U+${c.toString(16)}`);
   }
 });
 
 test("keeps only newline when allowNewline is set", () => {
-  assert.equal(sanitizeText("a\nb\r\nc\td", 50, { allowNewline: true }), "a\nb\ncd");
+  assert.equal(sanitizeText("a\nb\r\nc\td", 50, { allowNewline: true }), "a\nb\nc d");
   assert.equal(sanitizeText("a\nb", 50), "ab");
 });
 
