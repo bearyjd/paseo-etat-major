@@ -120,6 +120,21 @@ test("runner error codes map to UI-safe states, are cached, and refresh retries"
   assert.ok(execCount(s.h) > n);
 });
 
+test("refresh is rate limited: 20 rapid refreshes start at most one export, then it re-exports after the interval", async () => {
+  let exports = 0;
+  const runner: Runner = { exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
+  let t = 1_000_000;
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, runner, () => t);
+  await s.call("etat-major.planning.get");
+  assert.equal(exports, 1);
+  for (let i = 0; i < 20; i++) await s.call("etat-major.planning.refresh");
+  assert.equal(exports, 2, "first refresh exports; the other 19 serve the cache");
+  t += 5_000;
+  await s.call("etat-major.planning.refresh");
+  assert.equal(exports, 3);
+});
+
 test("a thrown runner failure becomes EXPORT_FAILED", async () => {
   const runner: Runner = { exportPlanning: () => Promise.reject(new Error(`boom ${EXE}`)) };
   const s = fakeServer(GOOD);
