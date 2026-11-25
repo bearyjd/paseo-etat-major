@@ -19,7 +19,7 @@ test("CHANGELOG has a 0.1.0 entry", () => {
 });
 
 test("README has the release sections", () => {
-  for (const h of ["## Install, update and uninstall", "## Alto deployment", "## Manual acceptance", "## Unproven"]) {
+  for (const h of ["## Install, update and uninstall", "## Deployment host", "## Manual acceptance", "## Unproven"]) {
     assert.ok(readme.includes(h), h);
   }
 });
@@ -31,7 +31,7 @@ test("README installs by tag with --ref and removes before reinstalling", () => 
 });
 
 test("README documents the env -i version check and a read-only workspace clone", () => {
-  assert.match(readme, /env -i PATH=\/usr\/bin:\/bin HOME=\/nonexistent .*--version/);
+  assert.match(readme, /env -i PATH=\/usr\/bin:\/bin LANG=C\.UTF-8 HOME="\$\(mktemp -d\)" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 .*--version/);
   assert.match(readme, /read-only clone/i);
 });
 
@@ -47,8 +47,18 @@ test("docs carry no personal paths, emails or hostnames", () => {
   for (const [name, text] of docs) {
     assert.doesNotMatch(text, /\/home\/|\/var\/home\/|\/Users\//, `${name}: personal path`);
     assert.doesNotMatch(text, /[\w.+-]+@[\w-]+\.[a-z]{2,}/i, `${name}: email`);
-    assert.doesNotMatch(text, /\bssh\s|\.local\b|\.lan\b/, `${name}: host`);
+    assert.doesNotMatch(text, /\bssh\s|\.local\b|\.lan\b|\bAlto\b/, `${name}: host`);
   }
+});
+
+test("README states every executable rule and scopes the unproven claims honestly", () => {
+  assert.match(readme, /owned by the user the Paseo daemon runs as/);
+  assert.match(readme, /every ancestor directory owned by that user or root/);
+  assert.match(readme, /not inside the workspace/);
+  assert.match(readme, /created as the daemon user/);
+  assert.match(readme, /Proven on the tested host only/);
+  assert.match(readme, /export run by the plugin's runner on the deployment host/);
+  assert.doesNotMatch(readme, /resolves @getpaseo\/plugin \(a devDependency\) at runtime on the host that was tested/);
 });
 
 test("SECURITY.md states the final trust points", () => {

@@ -45,7 +45,7 @@ Uninstall: `paseo plugin remove etat-major`. Settings stay in the host until you
 is installed, remove it first (`paseo plugin remove etat-major-smoke`). The manifest build step runs
 `npm ci --omit=dev --ignore-scripts`, so the host needs Node `>=22.6` and no network access beyond npm.
 
-## Alto deployment
+## Deployment host
 The maintainer runs these steps by hand; the plugin never touches the host beyond the configured executable.
 1. Create a venv and install etat-major at a pinned tag or commit, without the `[web]` extra (the export needs no
    web dependencies). Use either `python3 -m venv` (needs the OS venv and pip packages) or `uv`:
@@ -55,10 +55,13 @@ The maintainer runs these steps by hand; the plugin never touches the host beyon
        # or: uv venv <venv> && uv pip install --python <venv>/bin/python "git+https://github.com/bearyjd/etat-major@<tag-or-sha>"
 
 2. The `executable` setting is `<venv>/bin/etat-major` as a clean absolute path. Its basename must be `etat-major`, and
-   neither the file nor any ancestor directory may be group or world writable.
-3. Verify with the environment the plugin uses, before configuring:
+   neither the file nor any ancestor directory may be group or world writable. The file must be
+   owned by the user the Paseo daemon runs as, with every ancestor directory owned by that user or root, and it is
+   not inside the workspace. The venv should be created as the daemon user; one built by another user fails with
+   `EXE_INVALID`.
+3. Verify with the environment the runner uses (`server/runner.ts`), run from the workspace, before configuring:
 
-       env -i PATH=/usr/bin:/bin HOME=/nonexistent <venv>/bin/etat-major --version
+       cd <workspace> && env -i PATH=/usr/bin:/bin LANG=C.UTF-8 HOME="$(mktemp -d)" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 <venv>/bin/etat-major --version
 
    It must print `etat-major <version>` with a version the plugin supports.
 4. `workspace` is a read-only clone of the intent workspace repository, readable by the daemon user. The plugin never
@@ -97,11 +100,11 @@ Proven on a real host (Paseo 0.17.4), at the skeleton stage only: a `git:` insta
 - The 0.1.0 tag itself, and the Planning screen, sidebar row and settings page, have never been installed or seen on a
   real client (phone or web). Every item under Manual acceptance is open.
 - Whether the sidebar row is visible on a client, and that the screen renders and is readable on a phone.
-- A real export through the validated executable on the deployment host (venv bootstrap there, the `env -i` version
-  check, the daemon user's file permissions, timeout and process cleanup).
+- An export run by the plugin's runner on the deployment host (daemon-user permissions, timeout and process-group
+  cleanup); the venv and a manual `env -i` check were done by hand.
 - The remove-then-install update path with a newer tag.
-- The `npm ci --omit=dev` build resolves `@getpaseo/plugin` (a devDependency) at runtime on the host that was tested;
-  if a different host fails to resolve it, move it to `dependencies` (still pinned 0.17.4).
+- Proven on the tested host only; on another host the `--omit=dev` build may fail to resolve `@getpaseo/plugin` (a
+  devDependency); if so move it to `dependencies`, still pinned to 0.17.4.
 - Behaviour on Paseo versions outside `>=0.17.4 <0.18.0`, and on etat-major versions other than the one tested.
 - CI actions are referenced by tag, not by commit SHA (SHAs could not be verified offline).
 - The version is a constant in `shared/version.ts`, checked against `package.json` by a test (no JSON import).
