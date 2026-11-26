@@ -9,10 +9,15 @@ import * as ids from "../shared/ids.ts";
 // An unexpected call throws, which keeps the "registers only X" claim honest.
 function fakeServer() {
   const handled: string[] = [];
+  const registered: string[] = [];
   const target = {
     handle(rpc: { name: string }) {
       handled.push(rpc.name);
       return () => {};
+    },
+    registerSettings() {
+      registered.push("settings");
+      return { read: async () => ({ status: "invalid", revision: "0", error: "x" }), subscribe: () => () => {} };
     },
   };
   const ctx = new Proxy(target, {
@@ -21,7 +26,7 @@ function fakeServer() {
       throw new Error(`unexpected server context use: ${String(k)}`);
     },
   });
-  return { ctx, handled };
+  return { ctx, handled, registered };
 }
 
 function fakeClient() {
@@ -43,14 +48,14 @@ function fakeClient() {
   return { ctx, added, removed, components };
 }
 
-test("server entry default-exports contribute() returning cleanup, registers only status.get", async () => {
+test("server entry default-exports contribute() returning cleanup, registers only settings and the three RPC handlers", async () => {
   const mod = await import("../index.server.ts");
   assert.equal(typeof mod.default, "function");
-  const { ctx, handled } = fakeServer();
+  const { ctx, handled, registered } = fakeServer();
   const cleanup = mod.default(ctx as never);
   assert.equal(typeof cleanup, "function");
-  assert.equal(handled.length, 1);
-  assert.match(handled[0]!, /status\.get$/);
+  assert.deepEqual(registered, ["settings"]);
+  assert.deepEqual(handled.sort(), ["etat-major.planning.get", "etat-major.planning.refresh", "etat-major.status.get"]);
   cleanup();
 });
 

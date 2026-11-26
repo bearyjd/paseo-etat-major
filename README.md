@@ -1,8 +1,27 @@
 # paseo-etat-major
 
 Paseo plugin (SDK 0.17.4, Paseo `>=0.17.4 <0.18.0`) that will show an État-major planning view. This is the skeleton:
-a sidebar row "État-major" opening a "Not configured yet" screen, and one server RPC `status.get`
-returning `{version, configured:false}`. Raw TypeScript, no bundling.
+a sidebar row "État-major" opening a "Not configured yet" screen. The server half has host-scoped settings and
+three RPCs (below). Raw TypeScript, no bundling.
+
+## Settings and RPCs
+Host-scoped settings, id `etat-major`, schema version 1 (`server/settings.ts`), all optional until set:
+- `executable`: clean absolute path to the pinned `etat-major` executable.
+- `workspace`: clean absolute path to the workspace directory.
+- `project`: project id (`^[a-z0-9][a-z0-9-]{0,63}$`).
+Relative paths, `..` segments and bad ids are rejected by the schema; rejection messages never echo the value.
+Missing or invalid settings give `NOT_CONFIGURED` and nothing is spawned.
+
+RPCs (`shared/contracts.ts`, wired in `server/plugin.ts`; the plugin registers settings and these three handlers only):
+- `etat-major.planning.get`: returns the cached export with `exportedAt`; runs the exporter only when nothing is cached
+  for the current settings. Failures are cached too, so a broken setup is not re-spawned on every screen open.
+- `etat-major.planning.refresh`: the only call that re-runs the exporter over an existing cache entry.
+- `etat-major.status.get`: `{version, configured, lastError}`, where `lastError` is the last export attempt's error code
+  or null.
+Results are `{ok:true, data, exportedAt, version}` or `{ok:false, code}` with one of the fixed codes in
+`shared/errors.ts` (the UI maps one state per code). The cache is in memory only, keyed by the configured
+(executable, workspace, project), and cleared by the plugin cleanup; an export that finishes after cleanup is dropped.
+Runner logs carry a code and a redacted line, never a setting value.
 
 ## Development
     npm ci --ignore-scripts
