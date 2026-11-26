@@ -1,0 +1,7 @@
+{
+  "id": "etat-major",
+  "name": "État-major",
+  "description": "Read-only planning view for an État-major workspace.",
+  "requirements": { "paseo": ">=0.17.4 <0.18.0" },
+  "build": [["npm", "ci", "--omit=dev", "--ignore-scripts"]]
+}
