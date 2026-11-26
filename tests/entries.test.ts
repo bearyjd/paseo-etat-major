@@ -52,14 +52,20 @@ function fakeClient() {
   return { ctx, added, removed, components };
 }
 
-test("server entry default-exports contribute() returning cleanup, registers only settings and the three RPC handlers", async () => {
+test("server entry default-exports contribute() returning cleanup, registers only settings and the five RPC handlers", async () => {
   const mod = await import("../index.server.ts");
   assert.equal(typeof mod.default, "function");
   const { ctx, handled, registered } = fakeServer();
   const cleanup = mod.default(ctx as never);
   assert.equal(typeof cleanup, "function");
   assert.deepEqual(registered, ["settings"]);
-  assert.deepEqual(handled.sort(), ["etat-major.planning.get", "etat-major.planning.refresh", "etat-major.status.get"]);
+  assert.deepEqual(handled.sort(), [
+    "etat-major.discover.get",
+    "etat-major.discover.refresh",
+    "etat-major.planning.get",
+    "etat-major.planning.refresh",
+    "etat-major.status.get",
+  ]);
   cleanup();
 });
 

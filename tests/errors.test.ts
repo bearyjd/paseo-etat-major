@@ -2,11 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ERROR_CODES, ErrorCode } from "../shared/errors.ts";
 
-test("exactly the eleven fixed error codes, in order", () => {
+test("exactly the twelve fixed error codes, in order", () => {
   assert.deepEqual([...ERROR_CODES], [
     "NOT_CONFIGURED",
     "EXE_INVALID",
     "VERSION_UNSUPPORTED",
+    "DISCOVER_UNSUPPORTED",
     "WORKSPACE_INVALID",
     "INPUT_INVALID",
     "TIMEOUT",

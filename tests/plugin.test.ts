@@ -5,44 +5,10 @@ import { createRunner, type ExportResult, type Runner } from "../server/runner.t
 import { createPlugin } from "../server/plugin.ts";
 import { SettingsSchema } from "../server/settings.ts";
 import { EXE, WS, goodEntries, harness, okScript, type Script } from "./runner-harness.ts";
+import { fakeServer } from "./fake-server.ts";
 
-type Handler = (input: unknown, ctx: unknown) => Promise<Record<string, unknown>>;
-
-// Only handle() and registerSettings() exist; any other use (hooks, providers, ...) throws.
-function fakeServer(initial: unknown) {
-  const handlers = new Map<string, Handler>();
-  const state = { values: initial };
-  let definition: { id: string; scope: string; version: number } | undefined;
-  const target = {
-    handle(contract: { name: string }, h: Handler) {
-      handlers.set(contract.name, h);
-    },
-    registerSettings(def: { id: string; scope: string; version: number; schema: typeof SettingsSchema }) {
-      definition = def;
-      return {
-        read: async () => {
-          const r = def.schema.safeParse(state.values);
-          return r.success
-            ? { status: "ready", revision: "1", values: r.data }
-            : { status: "invalid", revision: "1", error: "invalid settings" };
-        },
-        subscribe: () => () => {},
-      };
-    },
-  };
-  const ctx = new Proxy(target, {
-    get(t, k) {
-      if (k in t) return (t as never)[k];
-      throw new Error(`unexpected server context use: ${String(k)}`);
-    },
-  });
-  const call = (name: string, input: unknown = {}) => {
-    const h = handlers.get(name);
-    assert.ok(h, `no handler ${name}`);
-    return h(input, {});
-  };
-  return { ctx, handlers, state, call, definition: () => definition };
-}
+// These tests drive planning only.
+const unused: Runner["exportDiscover"] = () => Promise.reject(new Error("discover not expected"));
 
 const GOOD = { executable: EXE, workspace: WS, project: "harbor" };
 const setup = (values: unknown = GOOD, script: Script = okScript, logs: unknown[] = []) => {
@@ -55,9 +21,15 @@ const setup = (values: unknown = GOOD, script: Script = okScript, logs: unknown[
 };
 const execCount = (h: ReturnType<typeof harness>) => h.calls.length;
 
-test("registers host settings v1 and exactly three handlers, nothing else", () => {
+test("registers host settings v1 and exactly five handlers, nothing else", () => {
   const s = setup();
-  assert.deepEqual([...s.handlers.keys()].sort(), ["etat-major.planning.get", "etat-major.planning.refresh", "etat-major.status.get"]);
+  assert.deepEqual([...s.handlers.keys()].sort(), [
+    "etat-major.discover.get",
+    "etat-major.discover.refresh",
+    "etat-major.planning.get",
+    "etat-major.planning.refresh",
+    "etat-major.status.get",
+  ]);
   const def = s.definition()!;
   assert.equal(def.scope, "host");
   assert.equal(def.version, 1);
@@ -123,7 +95,7 @@ test("runner error codes map to UI-safe states, are cached, and refresh retries"
 
 test("refresh is rate limited: 20 rapid refreshes start at most one export, then it re-exports after the interval", async () => {
   let exports = 0;
-  const runner: Runner = { exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
+  const runner: Runner = { exportDiscover: unused, exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
   let t = 1_000_000;
   const s = fakeServer(GOOD);
   createPlugin(s.ctx as never, runner, () => t);
@@ -137,7 +109,7 @@ test("refresh is rate limited: 20 rapid refreshes start at most one export, then
 });
 
 test("a thrown runner failure becomes EXPORT_FAILED", async () => {
-  const runner: Runner = { exportPlanning: () => Promise.reject(new Error(`boom ${EXE}`)) };
+  const runner: Runner = { exportDiscover: unused, exportPlanning: () => Promise.reject(new Error(`boom ${EXE}`)) };
   const s = fakeServer(GOOD);
   createPlugin(s.ctx as never, runner);
   assert.deepEqual(await s.call("etat-major.planning.get"), { ok: false, code: "EXPORT_FAILED" });
@@ -153,7 +125,7 @@ test("cleanup clears the cache and drops results of exports still in flight", as
 
   let release: (r: ExportResult) => void = () => {};
   let runs = 0;
-  const runner: Runner = { exportPlanning: () => (runs++, new Promise<ExportResult>((res) => (release = res))) };
+  const runner: Runner = { exportDiscover: unused, exportPlanning: () => (runs++, new Promise<ExportResult>((res) => (release = res))) };
   const t = fakeServer(GOOD);
   const cleanup = createPlugin(t.ctx as never, runner);
   const pending = t.call("etat-major.planning.get");
@@ -167,7 +139,7 @@ test("cleanup clears the cache and drops results of exports still in flight", as
 
 test("the cache holds a single entry: A, B, A exports three times", async () => {
   let exports = 0;
-  const runner: Runner = { exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
+  const runner: Runner = { exportDiscover: unused, exportPlanning: async () => (exports++, { ok: false, code: "BAD_JSON" }) };
   const s = fakeServer(GOOD);
   createPlugin(s.ctx as never, runner);
   await s.call("etat-major.planning.get");
@@ -182,7 +154,7 @@ test("the cache holds a single entry: A, B, A exports three times", async () => 
 
 test("a late result for old settings does not overwrite lastError", async () => {
   const releases: Array<(r: ExportResult) => void> = [];
-  const runner: Runner = { exportPlanning: () => new Promise<ExportResult>((res) => releases.push(res)) };
+  const runner: Runner = { exportDiscover: unused, exportPlanning: () => new Promise<ExportResult>((res) => releases.push(res)) };
   const s = fakeServer(GOOD);
   createPlugin(s.ctx as never, runner);
   const slowA = s.call("etat-major.planning.get");

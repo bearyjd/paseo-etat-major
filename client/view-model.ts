@@ -191,6 +191,7 @@ const ERROR_VIEWS: Record<ErrorCode, { sentence: string; hint: string }> = {
   NOT_CONFIGURED: { sentence: "État-major is not set up yet.", hint: "Open Settings and set the executable, workspace and project." },
   EXE_INVALID: { sentence: "The configured executable cannot be used.", hint: "Set an absolute path to etat-major in Settings. It must be a regular file that only its owner can write, inside a venv (user-site packages are not loaded)." },
   VERSION_UNSUPPORTED: { sentence: "This etat-major version is not supported.", hint: "Install a version in the range this plugin supports in a venv (user-site packages are not loaded), then tap Try again." },
+  DISCOVER_UNSUPPORTED: { sentence: "This etat-major version has no Discover export.", hint: "Update etat-major to a version that has export discover, then tap Try again." },
   WORKSPACE_INVALID: { sentence: "The workspace folder cannot be read.", hint: "Set an absolute path to an existing workspace directory in Settings." },
   INPUT_INVALID: { sentence: "A recorded input file cannot be used.", hint: "Set absolute paths to readable JSON files of at most 4 MiB in Settings, or clear the field." },
   TIMEOUT: { sentence: "The export took too long and was stopped.", hint: "Check the workspace size, then tap Try again." },
@@ -210,14 +211,14 @@ export const LOAD_ERROR_VIEW = {
 } as const;
 
 export type ErrorView = { readonly sentence: string; readonly hint: string };
-export type Loaded =
+export type Loaded<T = PlanningVm> =
   | { readonly kind: "loading" }
-  | { readonly kind: "vm"; readonly vm: PlanningVm; readonly refreshError?: ErrorView }
+  | { readonly kind: "vm"; readonly vm: T; readonly refreshError?: ErrorView }
   | { readonly kind: "error"; readonly view: ErrorView; readonly code: ErrorCode | null };
 
 // A failed "Try again" must not wipe a board that was valid and on screen: keep it and carry
 // the error as a banner. Without data yet, or on a plain load, the error replaces the view.
-export function settleLoad(prev: Loaded, next: Loaded, force: boolean): Loaded {
+export function settleLoad<T = PlanningVm>(prev: Loaded<T>, next: Loaded<T>, force: boolean): Loaded<T> {
   if (force && prev.kind === "vm" && next.kind === "error") return { kind: "vm", vm: prev.vm, refreshError: next.view };
   return next;
 }
