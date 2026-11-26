@@ -75,6 +75,17 @@ test("a missing citation or a superseded source needs checking; blank status and
   assert.deepEqual(cites.map((c) => c.needsCheck), [true, true]);
 });
 
+test("an unsourced or missing citation of a reviewed record still needs checking", () => {
+  for (const state of ["unsourced", "missing"] as const) {
+    const data = parse("harbor-discover.json");
+    data.decisions[0]!.cites = [{ ref: "research:0001#f9", state, status: "reviewed", provenance: "human" }];
+    const d = vm(data).decisions[0]!;
+    assert.equal(d.cites[0]!.needsCheck, true, state);
+    assert.equal(d.evidenceNeedsCheck, true, state);
+    assert.equal(d.evidenceText, "1 citation, 1 needs checking", state);
+  }
+});
+
 test("research always carries review status and provenance", () => {
   const [reviewed, unreviewed, superseded] = vm().research;
   assert.deepEqual([reviewed!.statusText, reviewed!.provenanceText, reviewed!.needsCheck], ["Status: Reviewed", "Provenance: AI-generated", false]);
