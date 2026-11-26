@@ -32,10 +32,13 @@ export function createPlugin(server: PluginServerContext, runner: Runner, now: (
       if (closed) return { ok: false, code: "EXPORT_FAILED" };
       const key = cacheKey(v);
       if (cache && cache.key === key && (!force || now() - lastForcedAt < MIN_REFRESH_MS)) return cache.result;
-      if (force) lastForcedAt = now();
+      const startedAt = now();
       const result = await run(v).catch((): ExportResult<T> => ({ ok: false, code: "EXPORT_FAILED" }));
-      // BUSY is transient; a result that finishes after cleanup must not repopulate the cache.
-      if (!closed && !(!result.ok && result.code === "BUSY")) cache = { key, result };
+      // BUSY ran nothing: it neither starts the refresh window nor replaces the cached export.
+      const busy = !result.ok && result.code === "BUSY";
+      if (force && !busy) lastForcedAt = startedAt;
+      // A result that finishes after cleanup must not repopulate the cache.
+      if (!closed && !busy) cache = { key, result };
       return result;
     }
 

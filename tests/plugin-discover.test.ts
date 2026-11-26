@@ -94,6 +94,25 @@ test("BUSY is not cached for discover", async () => {
   assert.equal(runs, 2);
 });
 
+test("a refresh answered BUSY does not use up the refresh window", async () => {
+  let t = 1_000_000;
+  let runs = 0;
+  const runner: Runner = {
+    exportPlanning: async () => ({ ok: false, code: "BAD_JSON" }),
+    // The second run meets another export in progress; the others finish (with a cacheable result).
+    exportDiscover: async () => ({ ok: false, code: ++runs === 2 ? "BUSY" : "TIMEOUT" }),
+  };
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, runner, () => t);
+  await s.call(GET);
+  assert.deepEqual(await s.call(REFRESH), { ok: false, code: "BUSY" });
+  t += 1_000;
+  assert.deepEqual(await s.call(REFRESH), { ok: false, code: "TIMEOUT" });
+  assert.equal(runs, 3, "the retry ran the export instead of serving the cache");
+  await s.call(REFRESH);
+  assert.equal(runs, 3, "a finished refresh still starts the window");
+});
+
 test("a thrown discover failure becomes EXPORT_FAILED", async () => {
   const runner: Runner = {
     exportPlanning: async () => ({ ok: false, code: "BAD_JSON" }),
