@@ -1,6 +1,6 @@
 # Fixtures
 
-Test data for the planning schema and sanitizer. None of it ships in the package.
+Test data for the planning and Discover schemas and the sanitizer. None of it ships in the package.
 
 ## workspace/ (synthetic, written for this repo)
 A small invented project, `harbor`, in the exporter's workspace layout (Markdown with YAML frontmatter:
@@ -22,6 +22,21 @@ Real output of the exporter, not edited by hand. Recorded with etat-major 0.1.0 
 - `harbor-prs.json`: the same plus `in-progress` (draft PR) and `review` (ready PR), so all six derived states appear.
 - The exporter output contains no absolute paths (checked). Neither recording has the optional `meute`,
   `manual_review` or `execution_links` keys; tests add those inline.
+
+## exports/harbor-discover.json (recorded)
+Real `export discover` output, not edited by hand. Recorded with etat-major 0.1.0 (commit 570b31d).
+
+    PYTHONPATH=<etat-major>/src python3 -m etat_major.cli export discover --json \
+      --workspace=<repo>/fixtures/workspace --project=harbor > fixtures/exports/harbor-discover.json
+
+It holds reviewed, unreviewed and superseded research, one finding without a source, and approved, rejected, proposed
+and postponed decisions. The workspace passed `workspace validate`, and both planning recordings above came out byte for
+byte the same after these research and decision records were added. A `missing` citation would be a workspace error, so
+tests add that case inline.
+
+## exports/discover-hostile.handcrafted.json (HAND-CRAFTED, not recorded)
+Discover payload shape, built to attack the screen: the same character classes as below, markup, `javascript:` source
+URLs and oversized strings. Never produced by the exporter.
 
 ## exports/hostile.handcrafted.json (HAND-CRAFTED, not recorded)
 Same payload shape, but written by hand to attack the renderer: bidi and C0/C1 control characters, `<script>`,
