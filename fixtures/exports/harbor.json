@@ -1,0 +1,169 @@
+{
+  "components": [],
+  "features": [
+    {
+      "architecture": [
+        {
+          "provenance": "human",
+          "ref": "fp:n:ui.sensorlist",
+          "relation": "modifies",
+          "state": "unverified",
+          "target": null
+        },
+        {
+          "provenance": "human",
+          "ref": "fp:f:src/sensors/last_seen.py",
+          "relation": "new",
+          "state": "unverified",
+          "target": null
+        }
+      ],
+      "id": "harbor/0001",
+      "outcome": "Sensors with no reading for a day are marked as silent in the list.",
+      "state": "planned",
+      "status": "planned",
+      "tasks": [
+        "harbor/0001",
+        "harbor/0002",
+        "harbor/0003",
+        "harbor/0004",
+        "harbor/0005",
+        "harbor/0006",
+        "harbor/0007"
+      ],
+      "title": "Flag silent sensors"
+    }
+  ],
+  "issues": [],
+  "project": "harbor",
+  "schema": "etat-major/planning@1",
+  "sources": [
+    {
+      "label": "Component declarations",
+      "status": "missing"
+    },
+    {
+      "label": "Floorplan graph",
+      "status": "missing"
+    },
+    {
+      "label": "Trail wiring",
+      "status": "missing"
+    },
+    {
+      "label": "Pull requests",
+      "status": "missing"
+    },
+    {
+      "label": "Releases",
+      "status": "missing"
+    },
+    {
+      "label": "Local Git",
+      "status": "missing"
+    }
+  ],
+  "tasks": [
+    {
+      "evidence": {
+        "accepted": [
+          "task:harbor/0001"
+        ],
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0001",
+      "state": "done",
+      "title": "Store each reading with its sensor id"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0002",
+      "state": "ready",
+      "title": "List sensors with the latest reading"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0003",
+      "state": "draft",
+      "title": "Sketch the silent sensor rule"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0004",
+      "state": "blocked",
+      "title": "Choose the silence threshold"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0005",
+      "state": "ready",
+      "title": "Compute the last seen time per sensor"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0006",
+      "state": "ready",
+      "title": "Mark silent sensors in the list"
+    },
+    {
+      "evidence": {
+        "accepted": "unverified",
+        "committed": "unverified",
+        "generated": "unverified",
+        "merged": "unverified",
+        "reviewed": "unverified",
+        "shipped": "unverified",
+        "tested": "unverified"
+      },
+      "id": "harbor/0007",
+      "state": "blocked",
+      "title": "Write the alert wording"
+    }
+  ],
+  "version": 1
+}

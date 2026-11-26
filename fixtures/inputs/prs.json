@@ -1,0 +1,26 @@
+[
+  {
+    "number": 11,
+    "title": "Compute last seen",
+    "body": "Task: harbor/0005\n",
+    "state": "OPEN",
+    "isDraft": true,
+    "mergedAt": null,
+    "headRefName": "task/harbor-0005-last-seen",
+    "reviewDecision": "",
+    "statusCheckRollup": [],
+    "mergeCommit": null
+  },
+  {
+    "number": 12,
+    "title": "Mark silent sensors",
+    "body": "Task: harbor/0006\n",
+    "state": "OPEN",
+    "isDraft": false,
+    "mergedAt": null,
+    "headRefName": "task/harbor-0006-mark-silent",
+    "reviewDecision": "REVIEW_REQUIRED",
+    "statusCheckRollup": [],
+    "mergeCommit": null
+  }
+]

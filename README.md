@@ -25,7 +25,18 @@ Until that happens the following are all unproven:
 
 ## Layout
 - `index.server.ts`, `index.client.tsx`: thin `contribute()` wiring, both return cleanup functions.
-- `shared/`: RPC contracts and the fixed error codes.
+- `shared/`: RPC contracts, the fixed error codes, the zod schema for the `etat-major/planning@1` export
+  (`planning-schema.ts`; rejects other markers and `version` other than 1, strips unknown keys; an unrecognised task
+  `state` is kept and mapped to `"unknown"` so the screen can show an Unrecognised lane)
+  and `sanitize.ts` (pure stripping of controls, bidi, invisible, tag and variation characters; caps; coerces
+  non-strings to an empty string).
+- `fixtures/`: a synthetic workspace, exports recorded from the real exporter and a hand-crafted hostile payload;
+  see `fixtures/README.md`.
 - `tests/`: `node --test --experimental-strip-types`, including a static guard over all source files.
+
+## Sanitization limits
+`sanitize.ts` strips ZWNJ and ZWJ (U+200C, U+200D) and variation selectors. Persian, Urdu and Kurdish orthography
+that needs ZWNJ, and ZWJ emoji sequences, therefore render degraded. That is acceptable for plain-text titles; revisit
+if non-Latin projects appear.
 
 See `SECURITY.md`. License: MIT.
