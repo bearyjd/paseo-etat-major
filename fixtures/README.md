@@ -30,9 +30,10 @@ Real `export discover` output, not edited by hand. Recorded with etat-major 0.1.
       --workspace=<repo>/fixtures/workspace --project=harbor > fixtures/exports/harbor-discover.json
 
 It holds reviewed, unreviewed and superseded research, one finding without a source, and approved, rejected, proposed
-and postponed decisions. The workspace passed `workspace validate`, and both planning recordings above came out byte for
-byte the same after these research and decision records were added. A `missing` citation would be a workspace error, so
-tests add that case inline.
+and postponed decisions. Decision 0002 writes its question and rationale as folded (`>`) block scalars and one
+`why_not` as a literal (`|`) one; the exporter writes their newlines as the characters `\u000a`. The workspace passed
+`workspace validate`, and both planning recordings above came out byte for byte the same with these research and
+decision records. A `missing` citation would be a workspace error, so tests add that case inline.
 
 ## exports/discover-hostile.handcrafted.json (HAND-CRAFTED, not recorded)
 Discover payload shape, built to attack the screen: the same character classes as below, markup, `javascript:` source

@@ -31,7 +31,7 @@
       "alternatives": [
         [
           "One text message per silent sensor",
-          "Operators would mute the number within days."
+          "Operators would mute the number within days.\\u000aMuted numbers miss real outages.\\u000a"
         ],
         [
           "One daily summary message",
@@ -58,8 +58,8 @@
       "id": "0002",
       "omitted_alternatives": 0,
       "omitted_cites": 0,
-      "question": "Should Harbor send a text message for every silent sensor?",
-      "rationale": "Repeated single alerts get ignored, and the summary needs new infrastructure.",
+      "question": "Should Harbor send a text message for every silent sensor?\\u000a",
+      "rationale": "Repeated single alerts get ignored, and the summary needs new infrastructure.\\u000a",
       "status": "rejected"
     },
     {

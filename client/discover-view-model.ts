@@ -85,9 +85,12 @@ const PROVENANCE: Record<Research["provenance"], string> = {
   human: "Human",
 };
 
-const title = (s: string): string => sanitizeText(s, CAPS.title);
+// The exporter writes a newline in a value as these six characters (block scalars end with one).
+// Interim until it keeps real newlines in prose; the same characters typed literally are replaced too.
+const unescapeNewlines = (s: string, to: string): string => s.replaceAll("\\u000a", to).trim();
+const title = (s: string): string => sanitizeText(unescapeNewlines(s, " "), CAPS.title);
 const ref = (s: string): string => sanitizeText(s, CAPS.ref);
-const prose = (s: string): string => sanitizeText(s, CAPS.prose, { allowNewline: true });
+const prose = (s: string): string => sanitizeText(unescapeNewlines(s, "\n"), CAPS.prose, { allowNewline: true });
 // Absent when null, or when nothing visible is left after cleaning.
 const optional = (s: string | null, clean: (v: string) => string): string | null => {
   const out = s === null ? "" : clean(s);

@@ -171,3 +171,28 @@ test("a failed forced refresh keeps the loaded Discover records", () => {
   const kept = settleLoad(prev, failed, true);
   assert.equal(kept.kind === "vm" && kept.vm, prev.kind === "vm" && prev.vm);
 });
+
+test("recorded multi-line YAML values: prose shows real line breaks, titles one line, no trailing break", () => {
+  const rejected = vm().decisions[1]!;
+  assert.equal(rejected.question, "Should Harbor send a text message for every silent sensor?");
+  assert.equal(rejected.rationale, "Repeated single alerts get ignored, and the summary needs new infrastructure.");
+  assert.equal(rejected.alternatives[0]!.whyNot, "Operators would mute the number within days.\nMuted numbers miss real outages.");
+});
+
+test("the exporter's escaped newline is undone before cleaning in every prose and title field", () => {
+  const NL = "\\u000a"; // six literal characters, as the exporter writes a newline
+  const data = parse("harbor-discover.json");
+  const two = `one${NL}two${NL}`;
+  Object.assign(data.decisions[0]!, { question: two, chosen: two, rationale: two, alternatives: [[two, two]] });
+  data.research[0]!.title = two;
+  data.research[0]!.findings[0]!.text = two;
+  data.decisions[1]!.chosen = `${NL}${NL}`;
+  data.decisions[1]!.rationale = `a${NL}${NL}${NL}${NL}b`;
+  const v = vm(data);
+  const d = v.decisions[0]!;
+  for (const prose of [d.chosen, d.rationale, d.alternatives[0]!.option, d.alternatives[0]!.whyNot, v.research[0]!.findings[0]!.text]) assert.equal(prose, "one\ntwo");
+  assert.equal(d.question, "one two");
+  assert.equal(v.research[0]!.title, "one two");
+  assert.equal(v.decisions[1]!.chosen, null, "only line breaks means absent");
+  assert.equal(v.decisions[1]!.rationale, "a\n\nb", "the newline run limit still applies");
+});
