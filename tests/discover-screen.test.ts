@@ -1,47 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import vm from "node:vm";
-import ts from "typescript";
 import { DiscoverPayload } from "../shared/discover-schema.ts";
 import { buildDiscoverVm } from "../client/discover-view-model.ts";
 import { makeStyles } from "../client/styles.ts";
 import { sentinelTheme } from "./sentinel-theme.ts";
+import { hosts, load, textOf, texts, type Node } from "./ui-harness.ts";
 
-// DiscoverBoard is stateless, so the real source can be transpiled and expanded into a tree of
-// host elements without React. This checks what is put on screen, not how a client draws it.
-type Props = Record<string, unknown> & { children?: unknown };
-type Node = { type: unknown; props: Props };
-
-function load(file: string, modules: Record<string, unknown>): Record<string, unknown> {
-  const src = readFileSync(new URL(`../client/${file}`, import.meta.url), "utf8");
-  const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText;
-  const mod = { exports: {} as Record<string, unknown> };
-  const jsx = (type: unknown, props: Props) => ({ type, props });
-  const stubs: Record<string, unknown> = {
-    "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" },
-    "react-native": { Text: "Text", View: "View", Pressable: "Pressable" },
-    ...modules,
-  };
-  vm.runInNewContext(js, { module: mod, exports: mod.exports, require: (id: string) => {
-    if (!(id in stubs)) throw new Error(`unexpected import: ${id}`);
-    return stubs[id];
-  } });
-  return mod.exports;
-}
-
+// DiscoverBoard is stateless, so the real source can be expanded into a tree without React.
 const controls = load("controls.tsx", {});
 const { DiscoverBoard } = load("DiscoverBoard.tsx", { "./controls.tsx": controls }) as { DiscoverBoard: (p: unknown) => Node };
-
-function hosts(node: unknown): Node[] {
-  if (Array.isArray(node)) return node.flatMap(hosts);
-  if (!node || typeof node !== "object") return [];
-  const n = node as Node;
-  if (typeof n.type === "function") return hosts((n.type as (p: Props) => unknown)(n.props));
-  return [n, ...hosts(n.props.children)];
-}
-const textOf = (n: Node): string => [n.props.children].flat(Infinity).filter((c) => typeof c === "string").join("");
-const texts = (tree: Node[]) => tree.filter((n) => n.type === "Text").map(textOf);
 
 const styles = makeStyles(sentinelTheme, { compact: true });
 const data = DiscoverPayload.parse(JSON.parse(readFileSync(new URL("../fixtures/exports/harbor-discover.json", import.meta.url), "utf8")));
@@ -61,6 +29,17 @@ test("decision list: every row shows its status, rejected ones with a danger car
   const label = hosts(rejected.props.children).find((n) => textOf(n) === "Status: Rejected")!;
   assert.equal((label.props.style as { color: string }).color, sentinelTheme.colors.statusDanger);
   assert.equal((rows[0]!.props.style as { borderColor: string }).borderColor, sentinelTheme.colors.border);
+});
+
+test("decision list: every row draws its evidence line as text, in warning style when it needs checking", () => {
+  const rows = render("decisions", null).filter((n) => n.type === "Pressable" && n.props.accessibilityRole === "button");
+  const drawn = rows.map((row, i) => {
+    const line = hosts(row.props.children).find((n) => n.type === "Text" && textOf(n) === model.decisions[i]!.evidenceText);
+    assert.ok(line, model.decisions[i]!.evidenceText);
+    return (line.props.style as { color: string }).color;
+  });
+  const { statusWarning, foregroundMuted } = sentinelTheme.colors;
+  assert.deepEqual(drawn, [foregroundMuted, statusWarning, statusWarning, statusWarning]);
 });
 
 test("research list: every row shows review status and provenance", () => {
