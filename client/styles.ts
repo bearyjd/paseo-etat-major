@@ -28,6 +28,8 @@ function viewStyles(c: Colors, compact: boolean) {
     cardWarning: { ...card, borderColor: c.statusWarning },
     cardDanger: { ...card, borderColor: c.statusDanger },
     taskRow: { ...card, minHeight: MIN_TAP, justifyContent: "center" },
+    rowWarning: { ...card, minHeight: MIN_TAP, justifyContent: "center", borderColor: c.statusWarning },
+    rowDanger: { ...card, minHeight: MIN_TAP, justifyContent: "center", borderColor: c.statusDanger },
     button,
     buttonDisabled: { ...button, borderColor: c.border, backgroundColor: c.surface2 },
     tab,

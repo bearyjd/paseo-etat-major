@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Discover view, reached from the Planning screen: decisions (rejected ones marked) and research with review status,
+  provenance and citation state always shown; source URLs as plain text. New RPCs `etat-major.discover.get` and
+  `etat-major.discover.refresh`, running only `export discover --json` with the workspace and project.
+- New error code `DISCOVER_UNSUPPORTED` with an "update etat-major" hint for an exporter without that command.
 - Optional `prs` and `releases` settings: absolute paths of JSON files recorded by hand, validated on every export and
   passed to the exporter as `--prs` and `--releases`. Nothing is fetched.
 - `prs` lets the In progress and Review lanes populate.

@@ -83,3 +83,16 @@ test("CHANGELOG records the prs and releases settings under Unreleased, above 0.
   assert.match(changelog, /^## Unreleased\b[\s\S]*`prs`[\s\S]*`releases`[\s\S]*^## 0\.1\.0\b/m);
   assert.doesNotMatch(changelog, /no releases setting/i);
 });
+
+test("README documents the Discover view, its command and the old-exporter hint", () => {
+  assert.ok(readme.includes("## Discover view"));
+  assert.match(readme, /export discover --json --workspace=<abs> --project=<id>/);
+  assert.match(readme, /`DISCOVER_UNSUPPORTED`/);
+  assert.match(readme, /etat-major\.discover\.get/);
+  assert.match(readme, /etat-major\.discover\.refresh/);
+  assert.doesNotMatch(readme, /three RPCs|three handlers/);
+});
+
+test("CHANGELOG records the Discover view under Unreleased", () => {
+  assert.match(changelog, /^## Unreleased\b[\s\S]*Discover view[\s\S]*`DISCOVER_UNSUPPORTED`[\s\S]*^## 0\.1\.0\b/m);
+});

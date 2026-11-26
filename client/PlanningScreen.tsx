@@ -4,7 +4,9 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useRpc } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/ui";
 import { planningGet, planningRefresh } from "../shared/contracts.ts";
+import { DiscoverView } from "./DiscoverView.tsx";
 import { SettingsPage } from "./SettingsPage.tsx";
+import { Button, Pill } from "./controls.tsx";
 import { makeStyles, type Styles } from "./styles.ts";
 import { publishSummary } from "./summary-store.ts";
 import {
@@ -24,24 +26,6 @@ import {
 // and is rendered as plain Text: no Markdown, no links, no images.
 
 const TICK_MS = 60_000;
-
-function Button({ styles, label, onPress, disabled }: { styles: Styles; label: string; onPress: () => void; disabled?: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      disabled={disabled}
-      onPress={onPress}
-      style={disabled ? styles.buttonDisabled : styles.button}
-    >
-      <Text style={disabled ? styles.text.buttonDisabled : styles.text.button}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function Pill({ styles, text }: { styles: Styles; text: string }) {
-  return <Text style={styles.text.pill}>{text}</Text>;
-}
 
 function Section({ styles, title, children }: { styles: Styles; title: string; children: ReactNode }) {
   return (
@@ -133,7 +117,7 @@ export function PlanningScreen({ params, theme, layout }: PluginScreenProps) {
   const rpcs = useRef({ getRpc, refreshRpc });
   rpcs.current = { getRpc, refreshRpc };
   const alive = useRef(true);
-  const [page, setPage] = useState<"planning" | "settings">(params.initialPage === "settings" ? "settings" : "planning");
+  const [page, setPage] = useState<"planning" | "discover" | "settings">(params.initialPage === "settings" ? "settings" : "planning");
   const [loaded, setLoaded] = useState<Loaded>({ kind: "loading" });
   const loadedRef = useRef<Loaded>(loaded);
   const [running, setRunning] = useState(false);
@@ -181,14 +165,17 @@ export function PlanningScreen({ params, theme, layout }: PluginScreenProps) {
       <View style={styles.column}>
         <View style={styles.tight}>
           <Text style={styles.text.title}>{vm ? `État-major · ${vm.project}` : "État-major"}</Text>
-          {vm ? <Text style={styles.text.muted}>{`Exported ${fresh!.exportedAtText} · ${vm.version}`}</Text> : null}
+          {vm && page !== "discover" ? <Text style={styles.text.muted}>{`Exported ${fresh!.exportedAtText} · ${vm.version}`}</Text> : null}
           <View style={styles.row}>
-            <Button styles={styles} label={running ? "Trying again" : "Try again"} disabled={running || page === "settings"} onPress={() => void run(true)} />
-            <Button styles={styles} label={page === "settings" ? "Planning" : "Settings"} onPress={() => setPage(page === "settings" ? "planning" : "settings")} />
+            {page === "discover" ? null : <Button styles={styles} label={running ? "Trying again" : "Try again"} disabled={running || page === "settings"} onPress={() => void run(true)} />}
+            <Button styles={styles} label={page === "planning" ? "Discover" : "Planning"} onPress={() => setPage(page === "planning" ? "discover" : "planning")} />
+            {page === "settings" ? null : <Button styles={styles} label="Settings" onPress={() => setPage("settings")} />}
           </View>
         </View>
         {page === "settings" ? (
           <SettingsPage styles={styles} onDone={() => setPage("planning")} />
+        ) : page === "discover" ? (
+          <DiscoverView styles={styles} nowMs={nowMs} onOpenSettings={() => setPage("settings")} />
         ) : loaded.kind === "loading" ? (
           <Text style={styles.text.muted}>Loading the planning export.</Text>
         ) : loaded.kind === "error" ? (
