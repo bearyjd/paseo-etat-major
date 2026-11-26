@@ -6,6 +6,7 @@ First release. Read-only État-major planning view for Paseo (SDK 0.17.4, Paseo 
 
 - Sidebar row and a mobile-first Planning screen: issues banner, stale banner, task lanes with counts, evidence detail,
   features and sources.
+- Screen, settings page messages and sidebar summary take their colors from the host theme.
 - Host-scoped settings (`executable`, `workspace`, `project`) and three RPCs: `etat-major.planning.get`,
   `etat-major.planning.refresh`, `etat-major.status.get`.
 - Runner for the pinned `etat-major` executable: validated path, scrubbed environment, no shell, timeouts, process-group

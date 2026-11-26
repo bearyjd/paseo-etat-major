@@ -4,6 +4,7 @@ import { useSettings } from "@getpaseo/plugin/client";
 import { SettingsAction, SettingsCard, SettingsInput, SettingsSection } from "@getpaseo/plugin/client/ui";
 import { CAPS, sanitizeText } from "../shared/sanitize.ts";
 import { clientSettings } from "./settings-def.ts";
+import type { Styles } from "./styles.ts";
 
 type Draft = { executable?: string; workspace?: string; project?: string };
 type Field = keyof Draft;
@@ -19,14 +20,14 @@ function clean(draft: Draft, base: Draft): Draft {
   return out;
 }
 
-export function SettingsPage({ onDone }: { onDone: () => void }) {
+export function SettingsPage({ styles, onDone }: { styles: Styles; onDone: () => void }) {
   const state = useSettings(clientSettings);
   const [draft, setDraft] = useState<Draft>({});
   const [saved, setSaved] = useState(false);
 
-  if (state.status === "loading") return <Text>Loading settings.</Text>;
+  if (state.status === "loading") return <Text style={styles.text.muted}>Loading settings.</Text>;
   if (state.status === "error") {
-    return <Text>{`Settings could not be read. ${sanitizeText(state.error, CAPS.title)}`}</Text>;
+    return <Text style={styles.text.danger}>{`Settings could not be read. ${sanitizeText(state.error, CAPS.title)}`}</Text>;
   }
   const base: Draft = state.status === "ready" ? state.values : {};
   const set = (k: Field) => (text: string) => {
@@ -38,7 +39,7 @@ export function SettingsPage({ onDone }: { onDone: () => void }) {
   };
 
   return (
-    <View style={{ gap: 12 }}>
+    <View style={styles.loose}>
       <SettingsSection title="État-major settings">
         <SettingsCard>
           <SettingsInput label="Executable" hint="Absolute path to the etat-major command." initialValue={base.executable ?? ""} onChangeText={set("executable")} />
@@ -46,9 +47,9 @@ export function SettingsPage({ onDone }: { onDone: () => void }) {
           <SettingsInput label="Project" hint="Project id: lowercase letters, digits and dashes." initialValue={base.project ?? ""} onChangeText={set("project")} />
         </SettingsCard>
       </SettingsSection>
-      {state.status === "invalid" ? <Text>Stored settings were not valid. Saving replaces them.</Text> : null}
-      {state.saveError ? <Text>{sanitizeText(state.saveError, CAPS.title)}</Text> : null}
-      {saved ? <Text>Saved.</Text> : null}
+      {state.status === "invalid" ? <Text style={styles.text.warning}>Stored settings were not valid. Saving replaces them.</Text> : null}
+      {state.saveError ? <Text style={styles.text.danger}>{sanitizeText(state.saveError, CAPS.title)}</Text> : null}
+      {saved ? <Text style={styles.text.success}>Saved.</Text> : null}
       <SettingsAction label="Save" actionLabel={state.saving ? "Saving" : "Save"} disabled={state.saving} onPress={() => void save()} />
       <SettingsAction label="Back to planning" actionLabel="Back" onPress={onDone} />
     </View>

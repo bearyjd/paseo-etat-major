@@ -5,6 +5,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { ScrollView } from "@getpaseo/plugin/client/ui";
 import { planningGet, planningRefresh } from "../shared/contracts.ts";
 import { SettingsPage } from "./SettingsPage.tsx";
+import { makeStyles, type Styles } from "./styles.ts";
 import { publishSummary } from "./summary-store.ts";
 import {
   LOAD_ERROR_VIEW,
@@ -22,103 +23,111 @@ import {
 // Every string below is either a fixed literal or comes out of view-model.ts already sanitized,
 // and is rendered as plain Text: no Markdown, no links, no images.
 
-const MIN_TAP = 44;
 const TICK_MS = 60_000;
-const MAX_WIDTH = 720;
 
-function Button({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
+function Button({ styles, label, onPress, disabled }: { styles: Styles; label: string; onPress: () => void; disabled?: boolean }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: Boolean(disabled) }}
       disabled={disabled}
       onPress={onPress}
-      style={{ minHeight: MIN_TAP, minWidth: MIN_TAP, justifyContent: "center", paddingHorizontal: 12, opacity: disabled ? 0.5 : 1 }}
+      style={disabled ? styles.buttonDisabled : styles.button}
     >
-      <Text style={{ fontWeight: "600" }}>{label}</Text>
+      <Text style={disabled ? styles.text.buttonDisabled : styles.text.button}>{label}</Text>
     </Pressable>
   );
 }
 
-function Pill({ text, muted }: { text: string; muted?: boolean }) {
-  return (
-    <Text style={{ opacity: muted ? 0.55 : 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, alignSelf: "flex-start", fontSize: 12 }}>{text}</Text>
-  );
+function Pill({ styles, text }: { styles: Styles; text: string }) {
+  return <Text style={styles.text.pill}>{text}</Text>;
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ styles, title, children }: { styles: Styles; title: string; children: ReactNode }) {
   return (
-    <View style={{ gap: 8 }}>
-      <Text style={{ fontWeight: "700", fontSize: 16 }}>{title}</Text>
+    <View style={styles.stack}>
+      <Text style={styles.text.heading}>{title}</Text>
       {children}
     </View>
   );
 }
 
-function TaskDetail({ task, lane, onBack }: { task: TaskRow; lane: string; onBack: () => void }) {
+function TaskDetail({ styles, task, lane, onBack }: { styles: Styles; task: TaskRow; lane: string; onBack: () => void }) {
   return (
-    <View style={{ gap: 8 }}>
-      <Button label="Back to list" onPress={onBack} />
-      <Text style={{ fontWeight: "700", fontSize: 18 }}>{task.title}</Text>
-      <Text>{`${task.id} · ${lane}`}</Text>
+    <View style={styles.stack}>
+      <Button styles={styles} label="Back to list" onPress={onBack} />
+      <Text style={styles.text.detailTitle}>{task.title}</Text>
+      <Text style={styles.text.muted}>{`${task.id} · ${lane}`}</Text>
       {task.evidence.map((e) => (
-        <View key={e.key} style={{ gap: 4, paddingVertical: 4 }}>
-          <Text style={{ fontWeight: "600" }}>{e.label}</Text>
-          {e.unverified ? <Pill text="unverified" muted /> : e.refs.map((r, i) => <Text key={`${r}:${i}`}>{r}</Text>)}
+        <View key={e.key} style={styles.card}>
+          <Text style={styles.text.strong}>{e.label}</Text>
+          {e.unverified ? <Pill styles={styles} text="unverified" /> : e.refs.map((r, i) => <Text key={`${r}:${i}`} style={styles.text.body}>{r}</Text>)}
         </View>
       ))}
     </View>
   );
 }
 
-function Lane({ lane, onOpen }: { lane: LaneVm; onOpen: (id: string) => void }) {
-  if (lane.count === 0) return <Text>{lane.emptyLine}</Text>;
+function Lane({ styles, lane, onOpen }: { styles: Styles; lane: LaneVm; onOpen: (id: string) => void }) {
+  if (lane.count === 0) return <Text style={styles.text.muted}>{lane.emptyLine}</Text>;
   return (
-    <View style={{ gap: 4 }}>
+    <View style={styles.tight}>
       {lane.tasks.map((t) => (
-        <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`${t.title}, ${t.unverifiedCount} of 7 unverified`} onPress={() => onOpen(t.key)} style={{ minHeight: MIN_TAP, justifyContent: "center", paddingVertical: 6 }}>
-          <Text style={{ fontWeight: "600" }}>{t.title}</Text>
-          <Text style={{ opacity: 0.6 }}>{`${t.id} · ${t.unverifiedCount} of 7 unverified`}</Text>
+        <Pressable key={t.key} accessibilityRole="button" accessibilityLabel={`${t.title}, ${t.unverifiedCount} of 7 unverified`} onPress={() => onOpen(t.key)} style={styles.taskRow}>
+          <Text style={styles.text.strong}>{t.title}</Text>
+          <Text style={styles.text.muted}>{`${t.id} · ${t.unverifiedCount} of 7 unverified`}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-function Board({ vm }: { vm: PlanningVm }) {
+function Board({ styles, vm }: { styles: Styles; vm: PlanningVm }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
   const lane = vm.lanes.find((l) => l.state === picked) ?? vm.lanes.find((l) => l.count > 0) ?? vm.lanes[0]!;
   const task = taskId === null ? undefined : lane.tasks.find((t) => t.key === taskId);
-  if (task) return <TaskDetail task={task} lane={lane.label} onBack={() => setTaskId(null)} />;
+  if (task) return <TaskDetail styles={styles} task={task} lane={lane.label} onBack={() => setTaskId(null)} />;
   return (
-    <View style={{ gap: 12 }}>
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", flexWrap: "wrap" }}>
+    <View style={styles.loose}>
+      <View accessibilityRole="tablist" style={styles.row}>
         {vm.lanes.map((l) => (
-          <Pressable key={l.state} accessibilityRole="tab" accessibilityState={{ selected: l.state === lane.state }} onPress={() => { setPicked(l.state); setTaskId(null); }} style={{ minHeight: MIN_TAP, justifyContent: "center", paddingHorizontal: 10, borderBottomWidth: l.state === lane.state ? 2 : 0 }}>
-            <Text style={{ fontWeight: l.state === lane.state ? "700" : "400" }}>{`${l.label} ${l.count}`}</Text>
+          <Pressable key={l.state} accessibilityRole="tab" accessibilityState={{ selected: l.state === lane.state }} onPress={() => { setPicked(l.state); setTaskId(null); }} style={l.state === lane.state ? styles.tabSelected : styles.tab}>
+            <Text style={l.state === lane.state ? styles.text.tabSelected : styles.text.tab}>{`${l.label} ${l.count}`}</Text>
           </Pressable>
         ))}
       </View>
-      <Lane lane={lane} onOpen={setTaskId} />
-      <Section title="Features">
-        {vm.features.length === 0 ? <Text>No features.</Text> : vm.features.map((f) => (
-          <View key={f.id} style={{ gap: 2 }}>
-            <Text style={{ fontWeight: "600" }}>{f.title}</Text>
-            <Text style={{ opacity: 0.6 }}>{`${f.id} · ${f.status} · ${f.state}`}</Text>
-            {f.outcome ? <Text>{f.outcome}</Text> : null}
-            {f.architecture.map((a, i) => <Text key={`${a.ref}:${i}`} style={{ opacity: 0.8 }}>{`${a.relation} ${a.ref} (${a.state}, ${a.provenance})`}</Text>)}
+      <Lane styles={styles} lane={lane} onOpen={setTaskId} />
+      <Section styles={styles} title="Features">
+        {vm.features.length === 0 ? <Text style={styles.text.muted}>No features.</Text> : vm.features.map((f) => (
+          <View key={f.id} style={styles.card}>
+            <Text style={styles.text.strong}>{f.title}</Text>
+            <Text style={styles.text.muted}>{`${f.id} · ${f.status} · ${f.state}`}</Text>
+            {f.outcome ? <Text style={styles.text.body}>{f.outcome}</Text> : null}
+            {f.architecture.map((a, i) => <Text key={`${a.ref}:${i}`} style={styles.text.muted}>{`${a.relation} ${a.ref} (${a.state}, ${a.provenance})`}</Text>)}
           </View>
         ))}
       </Section>
-      <Section title="Sources">
-        {vm.sources.length === 0 ? <Text>No sources.</Text> : vm.sources.map((s, i) => <Text key={`${s.label}:${i}`}>{`${s.label}: ${s.status}`}</Text>)}
+      <Section styles={styles} title="Sources">
+        {vm.sources.length === 0 ? <Text style={styles.text.muted}>No sources.</Text> : vm.sources.map((s, i) => <Text key={`${s.label}:${i}`} style={styles.text.body}>{`${s.label}: ${s.status}`}</Text>)}
       </Section>
     </View>
   );
 }
 
-export function PlanningScreen({ params, layout }: PluginScreenProps) {
+function Issues({ styles, issues }: { styles: Styles; issues: NonNullable<PlanningVm["issues"]> }) {
+  const blocking = issues.rows.some((i) => i.blocking);
+  return (
+    <View accessibilityRole="alert" style={blocking ? styles.cardDanger : styles.cardWarning}>
+      <Text style={blocking ? styles.text.dangerStrong : styles.text.warningStrong}>{issues.heading}</Text>
+      {issues.rows.map((i, n) => (
+        <Text key={n} style={i.blocking ? styles.text.danger : styles.text.warning}>{`${i.blocking ? "Blocking " : ""}${i.severity}: ${i.message} (${i.path}${i.field ? `, ${i.field}` : ""})`}</Text>
+      ))}
+    </View>
+  );
+}
+
+export function PlanningScreen({ params, theme, layout }: PluginScreenProps) {
   const getRpc = useRpc(planningGet);
   const refreshRpc = useRpc(planningRefresh);
   const rpcs = useRef({ getRpc, refreshRpc });
@@ -164,53 +173,46 @@ export function PlanningScreen({ params, layout }: PluginScreenProps) {
     };
   }, [page, run]);
 
-  const pad = layout.compact ? 12 : 24;
+  const styles = makeStyles(theme, layout);
   const vm = loaded.kind === "vm" ? loaded.vm : null;
   const fresh = vm ? freshness(vm.exportedAt, nowMs) : null;
   return (
-    <ScrollView contentContainerStyle={{ padding: pad }}>
-      <View style={{ width: "100%", maxWidth: MAX_WIDTH, alignSelf: "center", gap: 16 }}>
-        <View style={{ gap: 4 }}>
-          <Text style={{ fontSize: 20, fontWeight: "700" }}>{vm ? `État-major · ${vm.project}` : "État-major"}</Text>
-          {vm ? <Text style={{ opacity: 0.7 }}>{`Exported ${fresh!.exportedAtText} · ${vm.version}`}</Text> : null}
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            <Button label={running ? "Trying again" : "Try again"} disabled={running || page === "settings"} onPress={() => void run(true)} />
-            <Button label={page === "settings" ? "Planning" : "Settings"} onPress={() => setPage(page === "settings" ? "planning" : "settings")} />
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+      <View style={styles.column}>
+        <View style={styles.tight}>
+          <Text style={styles.text.title}>{vm ? `État-major · ${vm.project}` : "État-major"}</Text>
+          {vm ? <Text style={styles.text.muted}>{`Exported ${fresh!.exportedAtText} · ${vm.version}`}</Text> : null}
+          <View style={styles.row}>
+            <Button styles={styles} label={running ? "Trying again" : "Try again"} disabled={running || page === "settings"} onPress={() => void run(true)} />
+            <Button styles={styles} label={page === "settings" ? "Planning" : "Settings"} onPress={() => setPage(page === "settings" ? "planning" : "settings")} />
           </View>
         </View>
         {page === "settings" ? (
-          <SettingsPage onDone={() => setPage("planning")} />
+          <SettingsPage styles={styles} onDone={() => setPage("planning")} />
         ) : loaded.kind === "loading" ? (
-          <Text>Loading the planning export.</Text>
+          <Text style={styles.text.muted}>Loading the planning export.</Text>
         ) : loaded.kind === "error" ? (
-          <View style={{ gap: 4 }}>
-            <Text style={{ fontWeight: "600" }}>{loaded.view.sentence}</Text>
-            <Text>{loaded.view.hint}</Text>
-            {loaded.code === "NOT_CONFIGURED" ? <Button label="Open Settings" onPress={() => setPage("settings")} /> : null}
+          <View style={styles.cardDanger}>
+            <Text style={styles.text.dangerStrong}>{loaded.view.sentence}</Text>
+            <Text style={styles.text.body}>{loaded.view.hint}</Text>
+            {loaded.code === "NOT_CONFIGURED" ? <Button styles={styles} label="Open Settings" onPress={() => setPage("settings")} /> : null}
           </View>
         ) : (
           <>
-            {loaded.vm.issues ? (
-              <View accessibilityRole="alert" style={{ gap: 4, borderWidth: 1, padding: 12 }}>
-                <Text style={{ fontWeight: "700" }}>{loaded.vm.issues.heading}</Text>
-                {loaded.vm.issues.rows.map((i, n) => (
-                  <Text key={n}>{`${i.blocking ? "Blocking " : ""}${i.severity}: ${i.message} (${i.path}${i.field ? `, ${i.field}` : ""})`}</Text>
-                ))}
-              </View>
-            ) : null}
+            {loaded.vm.issues ? <Issues styles={styles} issues={loaded.vm.issues} /> : null}
             {loaded.refreshError ? (
-              <View accessibilityRole="alert" style={{ gap: 2, borderWidth: 1, padding: 12 }}>
-                <Text style={{ fontWeight: "600" }}>{loaded.refreshError.sentence}</Text>
-                <Text>{`${loaded.refreshError.hint} The board below is the last export that loaded.`}</Text>
+              <View accessibilityRole="alert" style={styles.cardDanger}>
+                <Text style={styles.text.dangerStrong}>{loaded.refreshError.sentence}</Text>
+                <Text style={styles.text.body}>{`${loaded.refreshError.hint} The board below is the last export that loaded.`}</Text>
               </View>
             ) : null}
             {fresh!.stale ? (
-              <View style={{ gap: 2, borderWidth: 1, padding: 12 }}>
-                <Text style={{ fontWeight: "600" }}>{fresh!.stale.sentence}</Text>
-                <Text>{fresh!.stale.hint}</Text>
+              <View style={styles.cardWarning}>
+                <Text style={styles.text.warningStrong}>{fresh!.stale.sentence}</Text>
+                <Text style={styles.text.body}>{fresh!.stale.hint}</Text>
               </View>
             ) : null}
-            <Board vm={loaded.vm} />
+            <Board styles={styles} vm={loaded.vm} />
           </>
         )}
       </View>

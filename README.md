@@ -19,7 +19,8 @@ never runs an export itself. The SDK's `SidebarRow` has no accessibility-label p
 trailing text.
 All payload text goes through `shared/sanitize.ts` in `client/view-model.ts` (pure, unit tested) and is rendered as
 plain `<Text>`: no Markdown, links or images. A test restricts `client/` to react, react-native, zod, the plugin SDK
-and `shared/` files.
+and `shared/` files. Colors come only from the host theme (`client/styles.ts`); tests reject color literals and
+unstyled elements. The settings fields are SDK components, left to the host to style.
 
 ## Manual acceptance
 Maintainer, on phone and web; record client and versions. Tick each item only after seeing it.
