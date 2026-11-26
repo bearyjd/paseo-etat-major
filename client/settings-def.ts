@@ -13,5 +13,6 @@ export const clientSettings = defineSettings({
     workspace: z.string().optional(),
     project: z.string().optional(),
     prs: z.string().optional(),
+    releases: z.string().optional(),
   }),
 });

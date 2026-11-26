@@ -337,3 +337,46 @@ test("single-flight key includes the prs file", async () => {
   assert.deepEqual(await a, await same);
   assert.equal(h.calls.filter((c) => c.args[0] === "export").length, 1);
 });
+
+const RELEASES = "/srv/rec/releases.json";
+const withBoth = (extra: ReturnType<typeof goodEntries> = {}) => withPrs({ [PRS]: { kind: "file" }, [RELEASES]: { kind: "file" }, ...extra });
+
+test("exact argv with a recorded releases file alone, and with both files in fixed order", async () => {
+  for (const [settings, flags] of [
+    [{ releases: RELEASES }, [`--releases=${RELEASES}`]],
+    [{ releases: RELEASES, prs: PRS }, [`--prs=${PRS}`, `--releases=${RELEASES}`]],
+    [{ releases: "", prs: PRS }, [`--prs=${PRS}`]],
+    [{ releases: "", prs: "" }, []],
+  ] as const) {
+    const h = harness(okScript, withBoth());
+    assert.equal((await createRunner(h.deps).exportPlanning({ ...SETTINGS, ...settings })).ok, true);
+    assert.deepEqual(h.calls.map((c) => c.args), [["--version"], [...BASE_ARGS, ...flags]]);
+    assert.equal(h.calls.some((c) => c.args.some((a) => a.startsWith("--repo"))), false);
+  }
+});
+
+test("a symlinked releases file is passed as its realpath", async () => {
+  const h = harness(okScript, withBoth({ "/srv/rel.json": { kind: "link", target: RELEASES } }));
+  await createRunner(h.deps).exportPlanning({ ...SETTINGS, releases: "/srv/rel.json" });
+  assert.deepEqual(h.calls.at(-1)!.args, [...BASE_ARGS, `--releases=${RELEASES}`]);
+});
+
+test("a bad releases file is INPUT_INVALID before any spawn, also next to a good prs file", async () => {
+  const h = harness(okScript, withBoth({ "/srv/rec/locked.json": { kind: "file", readable: false } }));
+  const runner = createRunner(h.deps);
+  for (const releases of ["/srv/rec/none.json", "/srv/rec/locked.json", "/srv/rec", "rec/releases.json"]) {
+    assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: PRS, releases }), { ok: false, code: "INPUT_INVALID" }, releases);
+  }
+  assert.equal(h.calls.length, 0);
+});
+
+test("single-flight key includes the releases file and keeps it apart from prs", async () => {
+  const h = harness((c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { hang: true }), withBoth());
+  const runner = createRunner(h.deps);
+  const a = runner.exportPlanning({ ...SETTINGS, releases: RELEASES });
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(await runner.exportPlanning(SETTINGS), { ok: false, code: "BUSY" });
+  assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: RELEASES }), { ok: false, code: "BUSY" });
+  h.calls.at(-1)!.cb(null, FIXTURE, "");
+  assert.equal((await a).ok, true);
+});

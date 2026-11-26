@@ -21,9 +21,9 @@ export function createPlugin(server: PluginServerContext, runner: Runner, now: (
 
   const notConfigured: ExportResult = { ok: false, code: "NOT_CONFIGURED" };
 
-  type Values = { executable?: string | undefined; workspace?: string | undefined; project?: string | undefined; prs?: string | undefined };
+  type Values = { executable?: string | undefined; workspace?: string | undefined; project?: string | undefined; prs?: string | undefined; releases?: string | undefined };
   // Keyed on the configured values; null when settings are incomplete.
-  const keyOf = (v: Values | undefined): string | null => (!v?.executable || !v.workspace || !v.project ? null : [v.executable, v.workspace, v.project, v.prs ?? ""].join("\0"));
+  const keyOf = (v: Values | undefined): string | null => (!v?.executable || !v.workspace || !v.project ? null : [v.executable, v.workspace, v.project, v.prs ?? "", v.releases ?? ""].join("\0"));
 
   async function load(force: boolean): Promise<ExportResult> {
     const state = await settings.read();
@@ -41,7 +41,7 @@ export function createPlugin(server: PluginServerContext, runner: Runner, now: (
     if (closed) return { ok: false, code: "EXPORT_FAILED" };
     if (cache && cache.key === key && (!force || now() - lastForcedAt < MIN_REFRESH_MS)) return cache.result;
     if (force) lastForcedAt = now();
-    const result = await runner.exportPlanning({ executable: v.executable!, workspace: v.workspace!, project: v.project!, prs: v.prs }).catch((): ExportResult => ({ ok: false, code: "EXPORT_FAILED" }));
+    const result = await runner.exportPlanning({ executable: v.executable!, workspace: v.workspace!, project: v.project!, prs: v.prs, releases: v.releases }).catch((): ExportResult => ({ ok: false, code: "EXPORT_FAILED" }));
     // BUSY is transient; a result that finishes after cleanup must not repopulate the cache.
     if (!closed && !(!result.ok && result.code === "BUSY")) cache = { key, result };
     return result;

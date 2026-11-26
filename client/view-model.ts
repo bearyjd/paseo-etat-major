@@ -192,7 +192,7 @@ const ERROR_VIEWS: Record<ErrorCode, { sentence: string; hint: string }> = {
   EXE_INVALID: { sentence: "The configured executable cannot be used.", hint: "Set an absolute path to etat-major in Settings. It must be a regular file that only its owner can write, inside a venv (user-site packages are not loaded)." },
   VERSION_UNSUPPORTED: { sentence: "This etat-major version is not supported.", hint: "Install a version in the range this plugin supports in a venv (user-site packages are not loaded), then tap Try again." },
   WORKSPACE_INVALID: { sentence: "The workspace folder cannot be read.", hint: "Set an absolute path to an existing workspace directory in Settings." },
-  INPUT_INVALID: { sentence: "The pull requests file cannot be used.", hint: "Set an absolute path to a readable JSON file of at most 4 MiB in Settings, or clear the field." },
+  INPUT_INVALID: { sentence: "A recorded input file cannot be used.", hint: "Set absolute paths to readable JSON files of at most 4 MiB in Settings, or clear the field." },
   TIMEOUT: { sentence: "The export took too long and was stopped.", hint: "Check the workspace size, then tap Try again." },
   OUTPUT_TOO_LARGE: { sentence: "The export was larger than this plugin accepts.", hint: "Reduce the project size or run the export by hand to inspect it." },
   EXPORT_FAILED: { sentence: "The export did not finish.", hint: "Run etat-major export planning --json by hand to see the error, then tap Try again." },

@@ -8,7 +8,7 @@ test("client settings definition matches the server registration", () => {
   assert.equal(clientSettings.id, SETTINGS_ID);
   assert.equal(clientSettings.version, SETTINGS_VERSION);
   assert.equal(clientSettings.scope, "host");
-  assert.deepEqual(Object.keys(clientSettings.schema.shape).sort(), ["executable", "project", "prs", "workspace"]);
+  assert.deepEqual(Object.keys(clientSettings.schema.shape).sort(), ["executable", "project", "prs", "releases", "workspace"]);
   assert.deepEqual(Object.keys(SettingsSchema.shape).sort(), Object.keys(clientSettings.schema.shape).sort());
 });
 

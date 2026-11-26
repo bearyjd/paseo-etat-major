@@ -2,10 +2,12 @@
 
 ## Unreleased
 
-- Optional `prs` setting: the absolute path of a pull request JSON file recorded by hand, validated on every export and
-  passed to the exporter as `--prs`, so the In progress and Review lanes can populate. Nothing is fetched.
-- New error code `INPUT_INVALID` for a missing, unreadable, non-regular or oversized file.
-- No releases setting: without `--repo`, which the plugin never passes, `--releases` adds no evidence.
+- Optional `prs` and `releases` settings: absolute paths of JSON files recorded by hand, validated on every export and
+  passed to the exporter as `--prs` and `--releases`. Nothing is fetched.
+- `prs` lets the In progress and Review lanes populate.
+- `releases` only sets the Releases source status: without `--repo`, which the plugin never passes, it adds no
+  `shipped` evidence.
+- New error code `INPUT_INVALID` for a missing, unreadable, non-regular or oversized input file.
 
 ## 0.1.0
 

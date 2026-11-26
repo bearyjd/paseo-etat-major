@@ -260,14 +260,35 @@ test("changing only the prs file re-exports with the new argv; an empty value eq
   assert.equal(exports()[2]!.args.some((a) => a.startsWith("--prs")), false);
 });
 
-test("prs setting: optional, empty allowed, same length and cleanliness rules as other paths", () => {
+for (const key of ["prs", "releases"] as const) test(`${key} setting: optional, empty allowed, same length and cleanliness rules as other paths`, () => {
   const path = (n: number) => "/" + "a".repeat(n - 1);
-  for (const prs of [undefined, "", "/srv/rec/prs.json", path(4096)]) {
-    assert.ok(SettingsSchema.safeParse({ ...GOOD, prs }).success, String(prs).slice(0, 40));
+  for (const v of [undefined, "", "/srv/rec/in.json", path(4096)]) {
+    const r = SettingsSchema.safeParse({ ...GOOD, [key]: v });
+    assert.ok(r.success && r.data[key] === v, String(v).slice(0, 40));
   }
-  for (const prs of ["rec/prs.json", "/srv/../prs.json", "/a\0b", " ", path(4097), 5]) {
-    assert.equal(SettingsSchema.safeParse({ prs }).success, false, String(prs).slice(0, 40));
+  for (const v of ["rec/in.json", "/srv/../in.json", "/a\0b", " ", path(4097), 5]) {
+    assert.equal(SettingsSchema.safeParse({ [key]: v }).success, false, String(v).slice(0, 40));
   }
-  const r = SettingsSchema.safeParse({ prs: "secret-relative-value" });
+  const r = SettingsSchema.safeParse({ [key]: "secret-relative-value" });
   assert.ok(!r.success && !JSON.stringify(r.error.issues).includes("secret-relative-value"));
+});
+
+test("changing only the releases file re-exports; the same path as prs is a different key", async () => {
+  const file = "/srv/rec/releases.json";
+  const h = harness(okScript, { ...goodEntries(), [file]: { kind: "file" as const } });
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, createRunner(h.deps));
+  const exports = () => h.calls.filter((c) => c.args[0] === "export");
+  await s.call("etat-major.planning.get");
+  s.state.values = { ...GOOD, releases: "" } as typeof GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 1, "empty releases is the same cache key as unset");
+  s.state.values = { ...GOOD, releases: file } as typeof GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 2);
+  assert.equal(exports()[1]!.args.at(-1), `--releases=${file}`);
+  s.state.values = { ...GOOD, prs: file } as typeof GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 3);
+  assert.equal(exports()[2]!.args.at(-1), `--prs=${file}`);
 });

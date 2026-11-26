@@ -55,8 +55,9 @@ export interface RunnerSettings {
   readonly executable?: string | undefined;
   readonly workspace?: string | undefined;
   readonly project?: string | undefined;
-  // Recorded pull request JSON; empty or unset passes no flag.
+  // Recorded pull request and release JSON files; empty or unset passes no flag.
   readonly prs?: string | undefined;
+  readonly releases?: string | undefined;
 }
 
 export type ExportResult =
@@ -181,7 +182,7 @@ function parseVersion(stdout: string): string | undefined {
 
 export interface Runner {
   // Runs (or joins) one export. Concurrent identical calls share one child; a call for a
-  // different (exe, workspace, project, prs) while one is running returns BUSY.
+  // different (exe, workspace, project, prs, releases) while one is running returns BUSY.
   exportPlanning(settings: RunnerSettings): Promise<ExportResult>;
 }
 
@@ -239,10 +240,11 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       // Workspace content is writable by whoever edits the project; never run code from inside it.
       if (isInside(exe.realpath, ws.realpath)) return fail("EXE_INVALID");
       const inputs: string[] = [];
-      if (s.prs) {
-        const prs = await validateInputFile(s.prs, { fs: d.fs });
-        if (!prs.ok) return fail(prs.code);
-        inputs.push(`--prs=${prs.realpath}`);
+      for (const name of ["prs", "releases"] as const) {
+        if (!s[name]) continue;
+        const file = await validateInputFile(s[name], { fs: d.fs });
+        if (!file.ok) return fail(file.code);
+        inputs.push(`--${name}=${file.realpath}`);
       }
       const key = [exe.realpath, ws.realpath, s.project, ...inputs].join("\0");
       if (inflight) return inflight.key === key ? inflight.promise : fail("BUSY");
