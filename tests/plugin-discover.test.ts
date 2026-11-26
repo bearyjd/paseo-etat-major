@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRunner, type ExportResult, type Runner } from "../server/runner.ts";
 import { createPlugin } from "../server/plugin.ts";
 import { PlanningResult, DiscoverResult, discoverGet, discoverRefresh } from "../shared/contracts.ts";
-import { EXE, FIXTURE, WS, harness, type Script } from "./runner-harness.ts";
+import { EXE, FIXTURE, WS, goodEntries, harness, type Script } from "./runner-harness.ts";
 import { fakeServer } from "./fake-server.ts";
 
 const DISCOVER = readFileSync(new URL("../fixtures/exports/harbor-discover.json", import.meta.url), "utf8");
@@ -12,8 +12,8 @@ const GOOD = { executable: EXE, workspace: WS, project: "harbor" };
 const GET = "etat-major.discover.get";
 const REFRESH = "etat-major.discover.refresh";
 const both: Script = (c) => ({ stdout: c.args[0] === "--version" ? "etat-major 0.1.0\n" : c.args[1] === "discover" ? DISCOVER : FIXTURE });
-const setup = (values: unknown = GOOD, script: Script = both, now?: () => number) => {
-  const h = harness(script);
+const setup = (values: unknown = GOOD, script: Script = both, now?: () => number, entries = goodEntries()) => {
+  const h = harness(script, entries);
   const s = fakeServer(values);
   const cleanup = createPlugin(s.ctx as never, createRunner(h.deps), now);
   const exports = (view: string) => h.calls.filter((c) => c.args[1] === view).length;
@@ -64,14 +64,22 @@ test("discover refresh re-runs, rate limited independently of planning refresh",
 });
 
 test("the discover cache ignores prs and releases but follows executable, workspace and project", async () => {
-  const s = setup();
+  const exe2 = "/opt/venv2/bin/etat-major";
+  const ws2 = "/srv/ws2";
+  const s = setup(GOOD, both, undefined, { ...goodEntries(), [exe2]: { kind: "file", mode: 0o755, mtimeMs: 8 }, [ws2]: { kind: "dir" } });
   await s.call(GET);
   s.state.values = { ...GOOD, prs: "/srv/rec/prs.json", releases: "/missing" };
   assert.equal((await s.call(GET)).ok, true);
   assert.equal(s.exports("discover"), 1);
-  s.state.values = { ...GOOD, project: "other" };
-  await s.call(GET);
-  assert.equal(s.exports("discover"), 2);
+  // Each step changes one setting and keeps the earlier changes.
+  const steps = [{ project: "other" }, { workspace: ws2 }, { executable: exe2 }];
+  let values = GOOD;
+  for (const [i, change] of steps.entries()) {
+    values = { ...values, ...change };
+    s.state.values = values;
+    assert.equal((await s.call(GET)).ok, true, JSON.stringify(change));
+    assert.equal(s.exports("discover"), i + 2, JSON.stringify(change));
+  }
 });
 
 test("an older exporter shows up as DISCOVER_UNSUPPORTED in the result and the status", async () => {
