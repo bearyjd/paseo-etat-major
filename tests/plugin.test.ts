@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRunner, type ExportResult, type Runner } from "../server/runner.ts";
 import { createPlugin } from "../server/plugin.ts";
 import { SettingsSchema } from "../server/settings.ts";
-import { EXE, WS, harness, okScript, type Script } from "./runner-harness.ts";
+import { EXE, WS, goodEntries, harness, okScript, type Script } from "./runner-harness.ts";
 
 type Handler = (input: unknown, ctx: unknown) => Promise<Record<string, unknown>>;
 
@@ -236,4 +236,38 @@ test("settings paths accept 4096 characters and reject 4097, for executable and 
   assert.equal(SettingsSchema.safeParse({ executable: exe(4097) }).success, false);
   assert.ok(SettingsSchema.safeParse({ workspace: ws(4096) }).success);
   assert.equal(SettingsSchema.safeParse({ workspace: ws(4097) }).success, false);
+});
+
+test("changing only the prs file re-exports with the new argv; an empty value equals unset", async () => {
+  const entries = { ...goodEntries(), "/srv/rec/prs.json": { kind: "file" as const } };
+  const h = harness(okScript, entries);
+  const s = fakeServer(GOOD);
+  createPlugin(s.ctx as never, createRunner(h.deps));
+  const exports = () => h.calls.filter((c) => c.args[0] === "export");
+  await s.call("etat-major.planning.get");
+  s.state.values = { ...GOOD, prs: "" } as typeof GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 1, "empty prs is the same cache key as unset");
+  s.state.values = { ...GOOD, prs: "/srv/rec/prs.json" } as typeof GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 2);
+  assert.equal(exports()[1]!.args.at(-1), "--prs=/srv/rec/prs.json");
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 2, "same key again is cached");
+  s.state.values = GOOD;
+  await s.call("etat-major.planning.get");
+  assert.equal(exports().length, 3);
+  assert.equal(exports()[2]!.args.some((a) => a.startsWith("--prs")), false);
+});
+
+test("prs setting: optional, empty allowed, same length and cleanliness rules as other paths", () => {
+  const path = (n: number) => "/" + "a".repeat(n - 1);
+  for (const prs of [undefined, "", "/srv/rec/prs.json", path(4096)]) {
+    assert.ok(SettingsSchema.safeParse({ ...GOOD, prs }).success, String(prs).slice(0, 40));
+  }
+  for (const prs of ["rec/prs.json", "/srv/../prs.json", "/a\0b", " ", path(4097), 5]) {
+    assert.equal(SettingsSchema.safeParse({ prs }).success, false, String(prs).slice(0, 40));
+  }
+  const r = SettingsSchema.safeParse({ prs: "secret-relative-value" });
+  assert.ok(!r.success && !JSON.stringify(r.error.issues).includes("secret-relative-value"));
 });

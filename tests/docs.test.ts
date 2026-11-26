@@ -69,7 +69,13 @@ test("SECURITY.md states the final trust points", () => {
   assert.doesNotMatch(security, /\bplanned\b/i);
 });
 
-test("README says 0.1.0 passes no PR input, so In progress and Review stay empty", () => {
-  assert.match(readme, /0\.1\.0 never passes `--prs`, `--releases` or `--repo`/);
-  assert.match(readme, /`In progress` and `Review` stay empty/);
+test("README says what fills In progress and Review, and what is still never passed", () => {
+  assert.match(readme, /`In progress` and `Review` stay empty unless the `prs` setting/);
+  assert.match(readme, /never passes `--releases` or `--repo`/);
+  assert.match(readme, /--prs=<abs>/);
+  assert.match(readme, /never fetches/i);
+});
+
+test("CHANGELOG records the prs setting under Unreleased, above 0.1.0", () => {
+  assert.match(changelog, /^## Unreleased\b[\s\S]*`prs`[\s\S]*^## 0\.1\.0\b/m);
 });

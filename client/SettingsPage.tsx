@@ -6,14 +6,14 @@ import { CAPS, sanitizeText } from "../shared/sanitize.ts";
 import { clientSettings } from "./settings-def.ts";
 import type { Styles } from "./styles.ts";
 
-type Draft = { executable?: string; workspace?: string; project?: string };
+type Draft = { executable?: string; workspace?: string; project?: string; prs?: string };
 type Field = keyof Draft;
 
 // Empty fields are dropped so the saved document only holds what was typed.
 function clean(draft: Draft, base: Draft): Draft {
   const merged = { ...base, ...draft };
   const out: Draft = {};
-  for (const k of ["executable", "workspace", "project"] as const) {
+  for (const k of ["executable", "workspace", "project", "prs"] as const) {
     const v = merged[k]?.trim();
     if (v) out[k] = v;
   }
@@ -45,6 +45,7 @@ export function SettingsPage({ styles, onDone }: { styles: Styles; onDone: () =>
           <SettingsInput label="Executable" hint="Absolute path to the etat-major command." initialValue={base.executable ?? ""} onChangeText={set("executable")} />
           <SettingsInput label="Workspace" hint="Absolute path to the workspace directory." initialValue={base.workspace ?? ""} onChangeText={set("workspace")} />
           <SettingsInput label="Project" hint="Project id: lowercase letters, digits and dashes." initialValue={base.project ?? ""} onChangeText={set("project")} />
+          <SettingsInput label="Pull requests file" hint="Optional. Absolute path to a recorded pull request JSON file." initialValue={base.prs ?? ""} onChangeText={set("prs")} />
         </SettingsCard>
       </SettingsSection>
       {state.status === "invalid" ? <Text style={styles.text.warning}>Stored settings were not valid. Saving replaces them.</Text> : null}

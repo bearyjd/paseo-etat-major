@@ -12,5 +12,6 @@ export const clientSettings = defineSettings({
     executable: z.string().optional(),
     workspace: z.string().optional(),
     project: z.string().optional(),
+    prs: z.string().optional(),
   }),
 });

@@ -10,6 +10,8 @@ export const SettingsSchema = z.object({
   executable: absolutePath.optional(),
   workspace: absolutePath.optional(),
   project: projectId.optional(),
+  // Empty means "not passed", so it must not invalidate the whole document.
+  prs: z.union([z.literal(""), absolutePath]).optional(),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

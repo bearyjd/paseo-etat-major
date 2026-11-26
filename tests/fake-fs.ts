@@ -1,7 +1,7 @@
 import type { FsLike, StatLike } from "../server/fs-like.ts";
 
 export type Entry =
-  | { kind: "file"; mode?: number; uid?: number; mtimeMs?: number; size?: number; ino?: number }
+  | { kind: "file"; mode?: number; uid?: number; mtimeMs?: number; size?: number; ino?: number; readable?: boolean }
   | { kind: "dir"; mode?: number; uid?: number; readable?: boolean }
   | { kind: "link"; target: string };
 
@@ -48,7 +48,7 @@ export function fakeFs(entries: Record<string, Entry>): FsLike & { removed: stri
     async access(p) {
       const e = entries[resolve(p)];
       if (!e) throw err("ENOENT");
-      if (e.kind === "dir" && e.readable === false) throw err("EACCES");
+      if (e.kind !== "link" && e.readable === false) throw err("EACCES");
     },
     async mkdtemp(prefix) {
       const p = `${prefix}${made.length}`;

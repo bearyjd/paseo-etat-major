@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SETTINGS_ID, SETTINGS_VERSION } from "../server/settings.ts";
+import { SETTINGS_ID, SETTINGS_VERSION, SettingsSchema } from "../server/settings.ts";
 import { clientSettings } from "../client/settings-def.ts";
 import { getSummary, publishSummary, subscribeSummary } from "../client/summary-store.ts";
 
@@ -8,7 +8,8 @@ test("client settings definition matches the server registration", () => {
   assert.equal(clientSettings.id, SETTINGS_ID);
   assert.equal(clientSettings.version, SETTINGS_VERSION);
   assert.equal(clientSettings.scope, "host");
-  assert.deepEqual(Object.keys(clientSettings.schema.shape).sort(), ["executable", "project", "workspace"]);
+  assert.deepEqual(Object.keys(clientSettings.schema.shape).sort(), ["executable", "project", "prs", "workspace"]);
+  assert.deepEqual(Object.keys(SettingsSchema.shape).sort(), Object.keys(clientSettings.schema.shape).sort());
 });
 
 test("summary store: empty at first, notifies subscribers, unsubscribe stops notifications", () => {
