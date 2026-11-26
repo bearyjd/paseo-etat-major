@@ -2,6 +2,7 @@ import { basename, dirname, isAbsolute } from "node:path";
 import type { FsLike } from "./fs-like.ts";
 
 export const EXE_BASENAME = "etat-major";
+export const MAX_PATH = 4096;
 const GROUP_OR_WORLD_WRITABLE = 0o022;
 
 export type ExeCheck =
@@ -11,7 +12,7 @@ export type ExeCheck =
 const BAD: ExeCheck = { ok: false, code: "EXE_INVALID" };
 
 export function isCleanAbsolute(p: unknown): p is string {
-  return typeof p === "string" && p.length > 0 && !p.includes("\0") && isAbsolute(p) && !p.split("/").includes("..");
+  return typeof p === "string" && p.length > 0 && p.length <= MAX_PATH && !p.includes("\0") && isAbsolute(p) && !p.split("/").includes("..");
 }
 
 const STICKY = 0o1000;

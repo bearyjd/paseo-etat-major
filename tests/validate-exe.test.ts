@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import * as realFs from "node:fs/promises";
 import { join } from "node:path";
-import { isInside, validateExecutable } from "../server/validate-exe.ts";
+import { isCleanAbsolute, isInside, validateExecutable } from "../server/validate-exe.ts";
 import { trustedTmpBase } from "./tmp-base.ts";
 import { fakeFs } from "./fake-fs.ts";
 
@@ -159,4 +159,11 @@ test("real filesystem: good file, writable file, symlinks", async () => {
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("path length: 4096 is clean, 4097 is rejected by isCleanAbsolute and validateExecutable", async () => {
+  const exe = (n: number) => "/" + "a".repeat(n - "/etat-major".length - 1) + "/etat-major";
+  assert.equal(isCleanAbsolute(exe(4096)), true);
+  assert.equal(isCleanAbsolute(exe(4097)), false);
+  assert.deepEqual(await run(good(), exe(4097)), { ok: false, code: "EXE_INVALID" });
 });

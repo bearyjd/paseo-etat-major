@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
 import * as ids from "../shared/ids.ts";
+import * as styles from "../client/styles.ts";
+import { sentinelTheme } from "./sentinel-theme.ts";
 
 // Minimal fakes: only the methods the entry files are expected to call.
 // An unexpected call throws, which keeps the "registers only X" claim honest.
@@ -29,10 +31,12 @@ function fakeServer() {
   return { ctx, handled, registered };
 }
 
+type RowElement = { props: { onPress: () => void; trailing?: { props: { style: { color: string } } } } };
+
 function fakeClient() {
   const added: string[] = [];
   const removed: string[] = [];
-  const components: Record<string, (p: unknown) => { props: { onPress: () => void } }> = {};
+  const components: Record<string, (p: unknown) => RowElement> = {};
   const reg = (kind: string) => (c: { id: string; Component: never }) => {
     added.push(`${kind}:${c.id}`);
     components[kind] = c.Component;
@@ -61,7 +65,7 @@ test("server entry default-exports contribute() returning cleanup, registers onl
 
 // Node cannot load .tsx or react-native, so the real client source is transpiled with
 // TypeScript and run in a vm with stubbed UI modules. contribute() is exercised for real.
-function loadClientEntry(): { default: (c: never) => () => void } {
+function loadClientEntry(summary: { short: string; label: string } | null = null): { default: (c: never) => () => void } {
   const src = readFileSync(new URL("../index.client.tsx", import.meta.url), "utf8");
   const js = ts.transpileModule(src, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
@@ -70,7 +74,8 @@ function loadClientEntry(): { default: (c: never) => () => void } {
     "react/jsx-runtime": { jsx: (type: unknown, props: unknown) => ({ type, props }), jsxs: () => null, Fragment: null },
     "@getpaseo/plugin/client/ui": { SidebarRow: () => null },
     "./client/PlanningScreen.tsx": { PlanningScreen: () => null },
-    "./client/summary-store.ts": { getSummary: () => null, subscribeSummary: () => () => {} },
+    "./client/summary-store.ts": { getSummary: () => summary, subscribeSummary: () => () => {} },
+    "./client/styles.ts": styles,
     react: { useSyncExternalStore: (_s: unknown, get: () => unknown) => get() },
     "./shared/ids.ts": ids,
     "react-native": { Text: () => null, View: () => null },
@@ -84,6 +89,8 @@ function loadClientEntry(): { default: (c: never) => () => void } {
   return mod.exports as never;
 }
 
+const hostProps = { theme: sentinelTheme, layout: { compact: false, platform: "web" } };
+
 test("client entry default-exports contribute() returning cleanup, registers screen and footer row", () => {
   const mod = loadClientEntry();
   assert.equal(typeof mod.default, "function");
@@ -95,8 +102,15 @@ test("client entry default-exports contribute() returning cleanup, registers scr
   assert.deepEqual([...removed].sort(), [...added].sort());
   // The row must open the screen that was registered, via one shared constant.
   const opened: unknown[] = [];
-  const element = components.footer!({ openScreen: (a: unknown) => opened.push(a), currentScreen: null });
+  const element = components.footer!({ ...hostProps, openScreen: (a: unknown) => opened.push(a), currentScreen: null });
   element.props.onPress();
   assert.equal(JSON.stringify(opened), JSON.stringify([{ screenId: ids.PLANNING_SCREEN_ID }]));
   assert.ok(added.includes(`screen:${ids.PLANNING_SCREEN_ID}`));
+});
+
+test("the sidebar row's trailing summary text takes its color from the host theme", () => {
+  const { ctx, components } = fakeClient();
+  loadClientEntry({ short: "7 tasks", label: "x" }).default(ctx as never);
+  const element = components.footer!({ ...hostProps, openScreen: () => {}, currentScreen: null });
+  assert.equal(element.props.trailing?.props.style.color, sentinelTheme.colors.foregroundMuted);
 });

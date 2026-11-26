@@ -9,7 +9,9 @@ Mobile-first single column (`client/PlanningScreen.tsx`). Header: project, expor
 "Try again" button (the only refresh; disabled while an export runs; no polling). Below it, in order: an issues banner
 (blocking first), a "possibly stale" banner when the export is older than 15 minutes by the local clock, then one task
 lane at a time under tabs with a count each (Draft, Ready, In progress, Review, Done, Blocked, plus Unrecognised only
-when the payload has a state this plugin does not know). Tapping a task shows its seven evidence fields; `unverified`
+when the payload has a state this plugin does not know). 0.1.0 never passes `--prs`, `--releases` or `--repo` to the
+exporter, so only the Draft, Ready, Blocked and Done lanes are populated; `In progress` and `Review` stay empty until a
+later release adds recorded PR input. Tapping a task shows its seven evidence fields; `unverified`
 is a muted pill, never a percentage. Features and sources follow. Each error code has one fixed sentence and hint.
 Settings (executable, workspace, project) open from the same screen (`initialPage=settings` param or the Settings
 button). The sidebar row shows a task-count summary (with a spoken label) only after the screen has loaded data; it
@@ -17,17 +19,59 @@ never runs an export itself. The SDK's `SidebarRow` has no accessibility-label p
 trailing text.
 All payload text goes through `shared/sanitize.ts` in `client/view-model.ts` (pure, unit tested) and is rendered as
 plain `<Text>`: no Markdown, links or images. A test restricts `client/` to react, react-native, zod, the plugin SDK
-and `shared/` files.
+and `shared/` files. Colors come only from the host theme (`client/styles.ts`); tests reject color literals and
+unstyled elements. The settings fields are SDK components, left to the host to style.
 
-## Manual acceptance (maintainer, phone and web; record client and versions)
+## Manual acceptance
+Maintainer, on phone and web; record client and versions. Tick each item only after seeing it.
 1. Install from a tag via `git:`; `paseo plugin ls` shows it running; no smoke plugin left.
 2. Sidebar row visible (phone: open the sidebar first); tapping it opens Planning.
 3. Unconfigured: a clear `NOT_CONFIGURED` hint. Bad exe path, `/bin/sh`, a writable copy: `EXE_INVALID`.
-4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand.
+4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand (without
+   `--prs`, `--releases` or `--repo`). Draft, Ready, Blocked and Done show tasks; In progress and Review show none.
 5. Refresh after editing a task file and `git pull`: the change shows after Try again; nothing refreshes without a tap.
 6. Hostile workspace (from the fixtures): no styled text, no link, no reordered text, long title truncated.
 7. Rename the venv: `EXE_INVALID`, then restore. Wrong workspace path: `WORKSPACE_INVALID`.
 8. `ps` after a timeout test: no leftover `etat-major` child. Phone portrait is readable with no horizontal scroll.
+
+## Install, update and uninstall
+Install from a release tag, never a branch (replace the tag with the current release):
+
+    paseo plugin install git:bearyjd/paseo-etat-major --ref v0.1.0
+    paseo plugin ls
+
+Update: remove first, then install the new tag. Reinstalling over an existing install is not supported.
+
+    paseo plugin remove etat-major
+    paseo plugin install git:bearyjd/paseo-etat-major --ref v0.1.1
+
+Uninstall: `paseo plugin remove etat-major`. Settings stay in the host until you clear them. If a smoke or test plugin
+is installed, remove it first (`paseo plugin remove etat-major-smoke`). The manifest build step runs
+`npm ci --omit=dev --ignore-scripts`, so the host needs Node `>=22.6` and no network access beyond npm.
+
+## Deployment host
+The maintainer runs these steps by hand; the plugin never touches the host beyond the configured executable.
+1. Create a venv and install etat-major at a pinned tag or commit, without the `[web]` extra (the export needs no
+   web dependencies). Use either `python3 -m venv` (needs the OS venv and pip packages) or `uv`:
+
+       python3 -m venv <venv>
+       <venv>/bin/pip install "git+https://github.com/bearyjd/etat-major@<tag-or-sha>"
+       # or: uv venv <venv> && uv pip install --python <venv>/bin/python "git+https://github.com/bearyjd/etat-major@<tag-or-sha>"
+
+2. The `executable` setting is `<venv>/bin/etat-major` as a clean absolute path. Its basename must be `etat-major`, and
+   neither the file nor any ancestor directory may be group or world writable. The file must be
+   owned by the user the Paseo daemon runs as, with every ancestor directory owned by that user or root, and it is
+   not inside the workspace. The venv should be created as the daemon user; one built by another user fails with
+   `EXE_INVALID`.
+3. Verify with the environment the runner uses (`server/runner.ts`), run from the workspace, before configuring:
+
+       cd <workspace> && env -i PATH=/usr/bin:/bin LANG=C.UTF-8 HOME="$(mktemp -d)" PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 <venv>/bin/etat-major --version
+
+   It must print `etat-major <version>` with a version the plugin supports.
+4. `workspace` is a read-only clone of the intent workspace repository, readable by the daemon user. The plugin never
+   pulls; the maintainer runs `git pull` there, then taps Try again. Update etat-major by reinstalling at a new pinned
+   ref and re-running the check in step 3.
+5. Set `project` to the project id, then open the sidebar row.
 
 ## Settings and RPCs
 Host-scoped settings, id `etat-major`, schema version 1 (`server/settings.ts`), all optional until set:
@@ -54,18 +98,20 @@ Runner logs carry a code and a redacted line, never a setting value.
     npm test
 
 ## Unproven
-PR1's explicit gate is a real `git:` install of this repo on a host, after which the sidebar row appears.
-Until that happens the following are all unproven:
+Proven on a real host (Paseo 0.17.4), at the skeleton stage only: a `git:` install with `--ref` installs, the manifest
+`build` step runs, zod and the SDK resolve, the plugin loads and registers its RPC. Still unproven for 0.1.0:
 
-- The manifest `build` step `[["npm","ci","--omit=dev","--ignore-scripts"]]` has never run in a real git install.
-- `--omit=dev` drops every devDependency, including `@getpaseo/plugin`, yet `shared/contracts.ts` imports
-  `defineRpc` from it at runtime. The proven smoke plugin listed `@getpaseo/plugin` and `zod` both in
-  devDependencies and was installed with a full `npm install`, so it only proves that a fully populated
-  `node_modules` loads. Whether the host supplies `@getpaseo/plugin` itself (so devDependencies is fine) is
-  unknown. If the install fails to resolve it, move `@getpaseo/plugin` to `dependencies` (still pinned 0.17.4).
-  Here `@getpaseo/plugin` stays in devDependencies, matching the smoke plugin.
-- The version is a constant in `shared/version.ts`, checked against `package.json` by a test (no JSON import).
+- The 0.1.0 tag itself, and the Planning screen, sidebar row and settings page, have never been installed or seen on a
+  real client (phone or web). Every item under Manual acceptance is open.
+- Whether the sidebar row is visible on a client, and that the screen renders and is readable on a phone.
+- An export run by the plugin's runner on the deployment host (daemon-user permissions, timeout and process-group
+  cleanup); the venv and a manual `env -i` check were done by hand.
+- The remove-then-install update path with a newer tag.
+- Proven on the tested host only; on another host the `--omit=dev` build may fail to resolve `@getpaseo/plugin` (a
+  devDependency); if so move it to `dependencies`, still pinned to 0.17.4.
+- Behaviour on Paseo versions outside `>=0.17.4 <0.18.0`, and on etat-major versions other than the one tested.
 - CI actions are referenced by tag, not by commit SHA (SHAs could not be verified offline).
+- The version is a constant in `shared/version.ts`, checked against `package.json` by a test (no JSON import).
 
 ## Layout
 - `index.server.ts`, `index.client.tsx`: thin `contribute()` wiring, both return cleanup functions.

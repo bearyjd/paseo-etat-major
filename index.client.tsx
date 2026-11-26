@@ -3,18 +3,20 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Text } from "react-native";
 import { useSyncExternalStore } from "react";
 import { PlanningScreen } from "./client/PlanningScreen.tsx";
+import { makeStyles } from "./client/styles.ts";
 import { getSummary, subscribeSummary } from "./client/summary-store.ts";
 import { PLANNING_SCREEN_ID } from "./shared/ids.ts";
 
 // A screen is only reachable through another contribution: this sidebar row opens it.
 // The counts appear only after the screen has loaded data; the row never starts an export itself.
-function PlanningEntry({ openScreen, currentScreen }: PluginSidebarItemProps) {
+function PlanningEntry({ theme, layout, openScreen, currentScreen }: PluginSidebarItemProps) {
   const summary = useSyncExternalStore(subscribeSummary, getSummary);
+  const styles = makeStyles(theme, layout);
   return (
     <SidebarRow
       icon="Compass"
       label="État-major"
-      trailing={summary ? <Text accessibilityLabel={summary.label}>{summary.short}</Text> : undefined}
+      trailing={summary ? <Text accessibilityLabel={summary.label} style={styles.text.badge}>{summary.short}</Text> : undefined}
       active={currentScreen?.screenId === PLANNING_SCREEN_ID}
       onPress={() => openScreen({ screenId: PLANNING_SCREEN_ID })}
     />

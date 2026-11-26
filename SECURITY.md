@@ -1,9 +1,11 @@
 # Security
 
 - Paseo plugins run unsandboxed inside the Paseo daemon, with the daemon's privileges. Review the code before installing.
-- The planned `executable` setting is an execution pointer: whatever path it names will be run by the daemon. Only point it at a binary you trust and that only you can write to. The plugin validates it, but validation is not a sandbox.
-- Pin a release tag when installing from git (`git:OWNER/REPO#vX.Y.Z`) rather than tracking a branch.
-- This plugin makes no network calls, reads no agent credentials or config, and starts no agent work. A test enforces this on the source.
+- The `executable` setting is an execution pointer: whatever path it names will be run by the daemon. Only point it at a binary you trust and that only you can write to. The plugin validates it, but validation is not a sandbox.
+- Pin a release tag when installing from git (`paseo plugin install git:bearyjd/paseo-etat-major --ref vX.Y.Z`), never a branch: a branch can change under you and the plugin runs with the daemon's privileges.
+- This plugin is read-only: it makes no network calls, reads no agent credentials or config, registers no agent hooks and starts or queues no agent work. A test enforces this on the source; the only place that may spawn a process is `server/runner.ts`, which runs the configured `etat-major` executable with a scrubbed environment and no shell.
+- Keep the workspace a read-only clone that you update by hand; the plugin never pulls, writes or fetches.
+- All text from the export is untrusted. It is sanitized and rendered as plain text only (no Markdown, links or images).
 
 ## Accepted risks
 

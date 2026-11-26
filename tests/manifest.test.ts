@@ -41,7 +41,7 @@ test("shared VERSION equals package.json version", () => {
 test("package.json files and engines", () => {
   assert.deepEqual(
     [...pkg.files].sort(),
-    ["LICENSE", "README.md", "SECURITY.md", "client", "index.client.tsx", "index.server.ts", "paseo-plugin.json", "server", "shared"],
+    ["CHANGELOG.md", "LICENSE", "README.md", "SECURITY.md", "client", "index.client.tsx", "index.server.ts", "paseo-plugin.json", "server", "shared"],
   );
   assert.equal(pkg.engines.node, ">=22.6");
 });
