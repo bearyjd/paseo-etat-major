@@ -4,7 +4,7 @@ import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import * as realFs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isValidProject, validateWorkspace } from "../server/validate-input.ts";
+import { isValidProject, validateWorkspace, MAX_INPUT_BYTES, validateInputFile } from "../server/validate-input.ts";
 import { fakeFs } from "./fake-fs.ts";
 
 test("project charset", () => {
@@ -48,5 +48,32 @@ test("workspace: real filesystem", async () => {
   } finally {
     chmodSync(root, 0o755);
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("validateInputFile: a readable regular file up to the 4 MiB cap resolves to its realpath", async () => {
+  assert.equal(MAX_INPUT_BYTES, 4 * 1024 * 1024);
+  const fs = fakeFs({
+    "/srv/rec/prs.json": { kind: "file", size: MAX_INPUT_BYTES },
+    "/srv/link.json": { kind: "link", target: "/srv/rec/prs.json" },
+  });
+  for (const p of ["/srv/rec/prs.json", "/srv/link.json"]) {
+    assert.deepEqual(await validateInputFile(p, { fs }), { ok: true, realpath: "/srv/rec/prs.json" }, p);
+  }
+});
+
+test("validateInputFile rejects unclean paths, missing, non-regular, unreadable and oversized files", async () => {
+  const fs = fakeFs({
+    "/srv/dir": { kind: "dir" },
+    "/srv/big.json": { kind: "file", size: MAX_INPUT_BYTES + 1 },
+    "/srv/locked.json": { kind: "file", readable: false },
+    "/srv/to-dir.json": { kind: "link", target: "/srv/dir" },
+    "/srv/dangling.json": { kind: "link", target: "/srv/gone.json" },
+    "/srv/ok.json": { kind: "file" },
+  });
+  const bad: unknown[] = [undefined, 5, "", "srv/ok.json", "/srv/dir/../ok.json", "/srv/ok.json\0", `/${"a".repeat(4096)}`,
+    "/srv/missing.json", "/srv/dir", "/srv/big.json", "/srv/locked.json", "/srv/to-dir.json", "/srv/dangling.json"];
+  for (const p of bad) {
+    assert.deepEqual(await validateInputFile(p, { fs }), { ok: false, code: "INPUT_INVALID" }, String(p));
   }
 });

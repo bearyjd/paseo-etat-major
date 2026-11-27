@@ -9,12 +9,12 @@ Mobile-first single column (`client/PlanningScreen.tsx`). Header: project, expor
 "Try again" button (the only refresh; disabled while an export runs; no polling). Below it, in order: an issues banner
 (blocking first), a "possibly stale" banner when the export is older than 15 minutes by the local clock, then one task
 lane at a time under tabs with a count each (Draft, Ready, In progress, Review, Done, Blocked, plus Unrecognised only
-when the payload has a state this plugin does not know). 0.1.0 never passes `--prs`, `--releases` or `--repo` to the
-exporter, so only the Draft, Ready, Blocked and Done lanes are populated; `In progress` and `Review` stay empty until a
-later release adds recorded PR input. Tapping a task shows its seven evidence fields; `unverified`
+when the payload has a state this plugin does not know). `In progress` and `Review` stay empty unless the `prs` setting
+names a recorded pull request file (see Recorded inputs below); the plugin never passes `--repo`.
+Tapping a task shows its seven evidence fields; `unverified`
 is a muted pill, never a percentage. Features and sources follow. Each error code has one fixed sentence and hint.
-Settings (executable, workspace, project) open from the same screen (`initialPage=settings` param or the Settings
-button). The sidebar row shows a task-count summary (with a spoken label) only after the screen has loaded data; it
+Settings (executable, workspace, project, optional pull requests and releases files) open from the same screen
+(`initialPage=settings` param or the Settings button). The sidebar row shows a task-count summary (with a spoken label) only after the screen has loaded data; it
 never runs an export itself. The SDK's `SidebarRow` has no accessibility-label prop, so the label sits on the row's
 trailing text.
 All payload text goes through `shared/sanitize.ts` in `client/view-model.ts` (pure, unit tested) and is rendered as
@@ -22,13 +22,34 @@ plain `<Text>`: no Markdown, links or images. A test restricts `client/` to reac
 and `shared/` files. Colors come only from the host theme (`client/styles.ts`); tests reject color literals and
 unstyled elements. The settings fields are SDK components, left to the host to style.
 
+## Recorded inputs
+Both optional. Record the files by hand on the host, in a checkout of the project's repository, with the commands from
+the etat-major ProgressEvidence documentation (write `[]` for an empty recording):
+
+    gh pr list --state all --limit 1000 --json number,title,body,state,isDraft,mergedAt,headRefName,reviewDecision,statusCheckRollup,mergeCommit > <dir>/prs.json
+    gh release list --limit 1000 --json tagName,publishedAt > <dir>/releases.json
+
+Set `prs` and `releases` to those files' absolute paths. The plugin only reads them: it never fetches, records or
+refreshes them. Record again, then tap Try again. On every export the runner checks that each set path resolves to a
+readable regular file of at most 4 MiB (otherwise `INPUT_INVALID` and nothing is spawned) and passes the resolved
+paths as `--prs=<abs>` and `--releases=<abs>`. A file with invalid content still exports; the problem appears in the
+issues banner and that source shows `invalid`.
+
+- `prs`: unless a task is blocked or done, a draft open pull request linked to it puts it In progress, and a ready or
+  merged one puts it in Review.
+- `releases`: limited. A release proves `shipped` only through local Git tags, which need `--repo`, and the plugin never
+  passes it. So this setting only sets the Releases source status (and reports a bad file);
+  `shipped` stays `unverified`.
+
 ## Manual acceptance
 Maintainer, on phone and web; record client and versions. Tick each item only after seeing it.
 1. Install from a tag via `git:`; `paseo plugin ls` shows it running; no smoke plugin left.
 2. Sidebar row visible (phone: open the sidebar first); tapping it opens Planning.
 3. Unconfigured: a clear `NOT_CONFIGURED` hint. Bad exe path, `/bin/sh`, a writable copy: `EXE_INVALID`.
-4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand (without
-   `--prs`, `--releases` or `--repo`). Draft, Ready, Blocked and Done show tasks; In progress and Review show none.
+4. Configured: features, tasks, sources and evidence match `etat-major export planning --json` run by hand (never with
+   `--repo`; with the same `--prs` and `--releases` as the settings). With `prs` empty, In progress and Review show
+   none; with a recorded pull request file the linked tasks appear there; with a releases file the Releases source shows
+   `recorded`. A wrong file path: `INPUT_INVALID`.
 5. Refresh after editing a task file and `git pull`: the change shows after Try again; nothing refreshes without a tap.
 6. Hostile workspace (from the fixtures): no styled text, no link, no reordered text, long title truncated.
 7. Rename the venv: `EXE_INVALID`, then restore. Wrong workspace path: `WORKSPACE_INVALID`.
@@ -78,6 +99,7 @@ Host-scoped settings, id `etat-major`, schema version 1 (`server/settings.ts`), 
 - `executable`: clean absolute path to the pinned `etat-major` executable.
 - `workspace`: clean absolute path to the workspace directory.
 - `project`: project id (`^[a-z0-9][a-z0-9-]{0,63}$`).
+- `prs`, `releases` (optional): clean absolute paths to recorded JSON files; empty means the flag is not passed.
 Relative paths, `..` segments and bad ids are rejected by the schema; rejection messages never echo the value.
 Missing or invalid settings give `NOT_CONFIGURED` and nothing is spawned.
 
@@ -89,7 +111,8 @@ RPCs (`shared/contracts.ts`, wired in `server/plugin.ts`; the plugin registers s
   or null.
 Results are `{ok:true, data, exportedAt, version}` or `{ok:false, code}` with one of the fixed codes in
 `shared/errors.ts` (the UI maps one state per code). The cache is in memory only, keyed by the configured
-(executable, workspace, project), and cleared by the plugin cleanup; an export that finishes after cleanup is dropped.
+(executable, workspace, project, prs, releases), and cleared by the plugin cleanup; an export that finishes after cleanup is
+dropped.
 Runner logs carry a code and a redacted line, never a setting value.
 
 ## Development

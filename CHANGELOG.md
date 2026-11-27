@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Optional `prs` and `releases` settings: absolute paths of JSON files recorded by hand, validated on every export and
+  passed to the exporter as `--prs` and `--releases`. Nothing is fetched.
+- `prs` lets the In progress and Review lanes populate.
+- `releases` only sets the Releases source status: without `--repo`, which the plugin never passes, it adds no
+  `shipped` evidence.
+- New error code `INPUT_INVALID` for a missing, unreadable, non-regular or oversized input file.
+
 ## 0.1.0
 
 First release. Read-only État-major planning view for Paseo (SDK 0.17.4, Paseo `>=0.17.4 <0.18.0`).

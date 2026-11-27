@@ -9,7 +9,7 @@ import { parsePlanningJson, type PlanningPayload } from "../shared/planning-sche
 import type { FsLike } from "./fs-like.ts";
 import { redactStderrLine } from "./redact.ts";
 import { isInside, validateExecutable } from "./validate-exe.ts";
-import { isValidProject, validateWorkspace } from "./validate-input.ts";
+import { isValidProject, validateInputFile, validateWorkspace } from "./validate-input.ts";
 
 export const TIMEOUT_MS = 20_000;
 export const MAX_BUFFER = 4 * 1024 * 1024;
@@ -55,6 +55,9 @@ export interface RunnerSettings {
   readonly executable?: string | undefined;
   readonly workspace?: string | undefined;
   readonly project?: string | undefined;
+  // Recorded pull request and release JSON files; empty or unset passes no flag.
+  readonly prs?: string | undefined;
+  readonly releases?: string | undefined;
 }
 
 export type ExportResult =
@@ -179,7 +182,7 @@ function parseVersion(stdout: string): string | undefined {
 
 export interface Runner {
   // Runs (or joins) one export. Concurrent identical calls share one child; a call for a
-  // different (exe, workspace, project) while one is running returns BUSY.
+  // different (exe, workspace, project, prs, releases) while one is running returns BUSY.
   exportPlanning(settings: RunnerSettings): Promise<ExportResult>;
 }
 
@@ -201,7 +204,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     return { version };
   }
 
-  async function exportOnce(exe: string, identity: string, ws: string, project: string): Promise<ExportResult> {
+  async function exportOnce(exe: string, identity: string, ws: string, project: string, inputs: readonly string[]): Promise<ExportResult> {
     let home: string;
     try {
       home = await d.fs.mkdtemp(join(d.tmpdir, "etat-major-home-"));
@@ -211,7 +214,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     try {
       const v = await checkVersion(exe, identity, ws, home);
       if (!("version" in v)) return v;
-      const args = ["export", "planning", "--json", `--workspace=${ws}`, `--project=${project}`];
+      const args = ["export", "planning", "--json", `--workspace=${ws}`, `--project=${project}`, ...inputs];
       const o = await runChild(d, exe, args, ws, home);
       if (o.kind === "timeout" || o.kind === "toolarge") return fail(OUTCOME_CODE[o.kind]);
       if (o.kind !== "ok") {
@@ -236,9 +239,16 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       if (!ws.ok) return fail(ws.code);
       // Workspace content is writable by whoever edits the project; never run code from inside it.
       if (isInside(exe.realpath, ws.realpath)) return fail("EXE_INVALID");
-      const key = [exe.realpath, ws.realpath, s.project].join("\0");
+      const inputs: string[] = [];
+      for (const name of ["prs", "releases"] as const) {
+        if (!s[name]) continue;
+        const file = await validateInputFile(s[name], { fs: d.fs });
+        if (!file.ok) return fail(file.code);
+        inputs.push(`--${name}=${file.realpath}`);
+      }
+      const key = [exe.realpath, ws.realpath, s.project, ...inputs].join("\0");
       if (inflight) return inflight.key === key ? inflight.promise : fail("BUSY");
-      const promise = exportOnce(exe.realpath, `${exe.mtimeMs}:${exe.size}:${exe.ino}`, ws.realpath, s.project)
+      const promise = exportOnce(exe.realpath, `${exe.mtimeMs}:${exe.size}:${exe.ino}`, ws.realpath, s.project, inputs)
         .catch((): ExportResult => fail("EXPORT_FAILED"))
         .finally(() => {
           inflight = undefined;

@@ -267,6 +267,7 @@ test("every error code in shared/errors.ts is reachable (none reserved)", async 
   await hit(okScript, SETTINGS, (e) => void (e[EXE] = { kind: "file", mode: 0o777 }));
   await hit((c) => ({ stdout: c.args[0] === "--version" ? "etat-major 9.0.0\n" : "" }));
   await hit(okScript, { ...SETTINGS, workspace: "/nope" });
+  await hit(okScript, { ...SETTINGS, prs: "/nope.json" });
   await hit((c) => v(c, { code: MAXBUF }));
   await hit((c) => v(c, { code: 2 }));
   await hit((c) => v(c, { stdout: "{" }));
@@ -281,4 +282,101 @@ test("every error code in shared/errors.ts is reachable (none reserved)", async 
   const t = await first;
   if (!t.ok) seen.add(t.code);
   assert.deepEqual([...seen].sort(), [...ERROR_CODES].sort());
+});
+
+const PRS = "/srv/rec/prs.json";
+const BASE_ARGS = ["export", "planning", "--json", `--workspace=${WS}`, "--project=harbor"];
+const withPrs = (extra: ReturnType<typeof goodEntries> = { [PRS]: { kind: "file" } }) => ({ ...goodEntries(), ...extra });
+
+test("exact argv with a recorded pull request file: --prs=<abs> after --project, nothing else added", async () => {
+  const h = harness(okScript, withPrs());
+  assert.equal((await createRunner(h.deps).exportPlanning({ ...SETTINGS, prs: PRS })).ok, true);
+  assert.deepEqual(h.calls.map((c) => c.args), [["--version"], [...BASE_ARGS, `--prs=${PRS}`]]);
+});
+
+test("an empty or unset prs setting passes no flag", async () => {
+  for (const prs of ["", undefined]) {
+    const h = harness();
+    assert.equal((await createRunner(h.deps).exportPlanning({ ...SETTINGS, prs })).ok, true);
+    assert.deepEqual(h.calls.at(-1)!.args, BASE_ARGS, String(prs));
+  }
+});
+
+test("a symlinked prs file is passed as its realpath", async () => {
+  const h = harness(okScript, withPrs({ [PRS]: { kind: "file" }, "/srv/current.json": { kind: "link", target: PRS } }));
+  await createRunner(h.deps).exportPlanning({ ...SETTINGS, prs: "/srv/current.json" });
+  assert.deepEqual(h.calls.at(-1)!.args, [...BASE_ARGS, `--prs=${PRS}`]);
+});
+
+test("the prs file is validated on every call, before any spawn", async () => {
+  const entries = withPrs();
+  const h = harness(okScript, entries);
+  const runner = createRunner(h.deps);
+  const settings = { ...SETTINGS, prs: PRS };
+  assert.equal((await runner.exportPlanning(settings)).ok, true);
+  const spawned = h.calls.length;
+  entries[PRS] = { kind: "file", size: 4 * 1024 * 1024 + 1 };
+  assert.deepEqual(await runner.exportPlanning(settings), { ok: false, code: "INPUT_INVALID" });
+  delete entries[PRS];
+  assert.deepEqual(await runner.exportPlanning(settings), { ok: false, code: "INPUT_INVALID" });
+  assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: "rec/prs.json" }), { ok: false, code: "INPUT_INVALID" });
+  assert.equal(h.calls.length, spawned);
+});
+
+test("single-flight key includes the prs file", async () => {
+  const other = "/srv/rec/other.json";
+  const h = harness((c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { hang: true }), withPrs({ [PRS]: { kind: "file" }, [other]: { kind: "file" } }));
+  const runner = createRunner(h.deps);
+  const a = runner.exportPlanning({ ...SETTINGS, prs: PRS });
+  await new Promise((r) => setImmediate(r));
+  const same = runner.exportPlanning({ ...SETTINGS, prs: PRS });
+  assert.deepEqual(await runner.exportPlanning(SETTINGS), { ok: false, code: "BUSY" });
+  assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: other }), { ok: false, code: "BUSY" });
+  await new Promise((r) => setImmediate(r));
+  h.calls.at(-1)!.cb(null, FIXTURE, "");
+  assert.deepEqual(await a, await same);
+  assert.equal(h.calls.filter((c) => c.args[0] === "export").length, 1);
+});
+
+const RELEASES = "/srv/rec/releases.json";
+const withBoth = (extra: ReturnType<typeof goodEntries> = {}) => withPrs({ [PRS]: { kind: "file" }, [RELEASES]: { kind: "file" }, ...extra });
+
+test("exact argv with a recorded releases file alone, and with both files in fixed order", async () => {
+  for (const [settings, flags] of [
+    [{ releases: RELEASES }, [`--releases=${RELEASES}`]],
+    [{ releases: RELEASES, prs: PRS }, [`--prs=${PRS}`, `--releases=${RELEASES}`]],
+    [{ releases: "", prs: PRS }, [`--prs=${PRS}`]],
+    [{ releases: "", prs: "" }, []],
+  ] as const) {
+    const h = harness(okScript, withBoth());
+    assert.equal((await createRunner(h.deps).exportPlanning({ ...SETTINGS, ...settings })).ok, true);
+    assert.deepEqual(h.calls.map((c) => c.args), [["--version"], [...BASE_ARGS, ...flags]]);
+    assert.equal(h.calls.some((c) => c.args.some((a) => a.startsWith("--repo"))), false);
+  }
+});
+
+test("a symlinked releases file is passed as its realpath", async () => {
+  const h = harness(okScript, withBoth({ "/srv/rel.json": { kind: "link", target: RELEASES } }));
+  await createRunner(h.deps).exportPlanning({ ...SETTINGS, releases: "/srv/rel.json" });
+  assert.deepEqual(h.calls.at(-1)!.args, [...BASE_ARGS, `--releases=${RELEASES}`]);
+});
+
+test("a bad releases file is INPUT_INVALID before any spawn, also next to a good prs file", async () => {
+  const h = harness(okScript, withBoth({ "/srv/rec/locked.json": { kind: "file", readable: false } }));
+  const runner = createRunner(h.deps);
+  for (const releases of ["/srv/rec/none.json", "/srv/rec/locked.json", "/srv/rec", "rec/releases.json"]) {
+    assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: PRS, releases }), { ok: false, code: "INPUT_INVALID" }, releases);
+  }
+  assert.equal(h.calls.length, 0);
+});
+
+test("single-flight key includes the releases file and keeps it apart from prs", async () => {
+  const h = harness((c) => (c.args[0] === "--version" ? { stdout: "etat-major 0.1.0\n" } : { hang: true }), withBoth());
+  const runner = createRunner(h.deps);
+  const a = runner.exportPlanning({ ...SETTINGS, releases: RELEASES });
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(await runner.exportPlanning(SETTINGS), { ok: false, code: "BUSY" });
+  assert.deepEqual(await runner.exportPlanning({ ...SETTINGS, prs: RELEASES }), { ok: false, code: "BUSY" });
+  h.calls.at(-1)!.cb(null, FIXTURE, "");
+  assert.equal((await a).ok, true);
 });
