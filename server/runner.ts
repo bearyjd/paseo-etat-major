@@ -199,8 +199,8 @@ function parseVersion(stdout: string): string | undefined {
   const m = VERSION_RE.exec(stdout);
   if (!m) return undefined;
   const [major, minor] = [Number(m[1]), Number(m[2])];
-  // Pinned range: >=0.1.0 <0.2.0
-  return major === 0 && minor === 1 ? `${m[1]}.${m[2]}.${m[3]}` : undefined;
+  // Supported range: >=0.1.0 <0.3.0. Each export also validates its schema marker and payload.
+  return major === 0 && (minor === 1 || minor === 2) ? `${m[1]}.${m[2]}.${m[3]}` : undefined;
 }
 
 export interface Runner {
