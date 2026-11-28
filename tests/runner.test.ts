@@ -270,6 +270,9 @@ test("every error code in shared/errors.ts is reachable (none reserved)", async 
   await hit(okScript, { ...SETTINGS, prs: "/nope.json" });
   await hit((c) => v(c, { code: MAXBUF }));
   await hit((c) => v(c, { code: 2 }));
+  const old = "etat-major export: error: argument action: invalid choice: 'discover' (choose from 'planning')\n";
+  const missing = await createRunner(harness((c) => v(c, { code: 2, stderr: old })).deps).exportDiscover(SETTINGS);
+  if (!missing.ok) seen.add(missing.code);
   await hit((c) => v(c, { stdout: "{" }));
   await hit((c) => v(c, { stdout: "{}" }));
   const h = harness((c) => v(c, { hang: true }));

@@ -45,7 +45,7 @@ function styleProblems(name: string, source: string): string[] {
 
 test("the theme scan covers the screen, settings page, styles and client entry", () => {
   const rels = files.map((f) => f.rel);
-  for (const f of ["index.client.tsx", "client/PlanningScreen.tsx", "client/SettingsPage.tsx", "client/styles.ts"]) {
+  for (const f of ["index.client.tsx", "client/PlanningScreen.tsx", "client/SettingsPage.tsx", "client/DiscoverView.tsx", "client/DiscoverBoard.tsx", "client/controls.tsx", "client/styles.ts"]) {
     assert.ok(rels.includes(f), f);
   }
 });

@@ -1,8 +1,8 @@
 # paseo-etat-major
 
-Paseo plugin (SDK 0.17.4, Paseo `>=0.17.4 <0.18.0`) that shows a read-only État-major planning view: a sidebar row
-"État-major" opens the Planning screen. The server half has host-scoped settings and three RPCs (below). Raw
-TypeScript, no bundling.
+Paseo plugin (SDK 0.17.4, Paseo `>=0.17.4 <0.18.0`) that shows read-only État-major views: a sidebar row
+"État-major" opens the Planning screen, which leads to the Discover view (research and decisions). The server half has
+host-scoped settings and five RPCs (below). Raw TypeScript, no bundling.
 
 ## Planning screen
 Mobile-first single column (`client/PlanningScreen.tsx`). Header: project, export age, etat-major version, and a
@@ -21,6 +21,28 @@ All payload text goes through `shared/sanitize.ts` in `client/view-model.ts` (pu
 plain `<Text>`: no Markdown, links or images. A test restricts `client/` to react, react-native, zod, the plugin SDK
 and `shared/` files. Colors come only from the host theme (`client/styles.ts`); tests reject color literals and
 unstyled elements. The settings fields are SDK components, left to the host to style.
+
+## Discover view
+Opened with the Discover button on the Planning screen (`client/DiscoverView.tsx`, drawn by
+`client/DiscoverBoard.tsx`). It shows `etat-major export discover --json`; the runner passes exactly
+`export discover --json --workspace=<abs> --project=<id>`, never `--prs`, `--releases` or `--repo`, with the same
+validation, environment, output cap, timeout and one-export-at-a-time rule as Planning. A Discover export asked for
+while a Planning export is still running (or the reverse) answers `BUSY`; tap Try again. The payload must carry the
+marker `etat-major/discover@1` and `version` 1, with known status, provenance and citation values, or the screen shows
+`SCHEMA_MISMATCH`.
+
+Two tabs, Decisions and Research, in the exporter's order; tapping a row shows its detail.
+- Every decision shows its status. A rejected one has the danger color and the words `Status: Rejected`, and the tab
+  counts rejected decisions. A proposed one is marked as not decided. Each citation shows whether it resolves
+  (`ok`, `unsourced`, `missing`), plus the cited record's review status and provenance.
+- Every research record shows its review status and provenance, in the list and in the detail. A finding without both
+  a source URL and a date is marked `unsourced`. Source URLs are selectable plain text, never links.
+- Omitted records, findings, alternatives and citations are counted on screen, and records that failed to load are
+  announced (`etat-major workspace validate` gives the details).
+- The Discover export needs an etat-major that has the command. An older one reports the same version number, so the
+  plugin recognises its "invalid choice" usage error (exit 2) and shows `DISCOVER_UNSUPPORTED` with an "Update
+  etat-major" hint. Any other failure is `EXPORT_FAILED`; one cause is a project with no planning records (features,
+  tasks, milestones or components), which the exporter refuses even when it has research and decisions.
 
 ## Recorded inputs
 Both optional. Record the files by hand on the host, in a checkout of the project's repository, with the commands from
@@ -54,6 +76,9 @@ Maintainer, on phone and web; record client and versions. Tick each item only af
 6. Hostile workspace (from the fixtures): no styled text, no link, no reordered text, long title truncated.
 7. Rename the venv: `EXE_INVALID`, then restore. Wrong workspace path: `WORKSPACE_INVALID`.
 8. `ps` after a timeout test: no leftover `etat-major` child. Phone portrait is readable with no horizontal scroll.
+9. Discover: decisions and research match `etat-major export discover --json` run by hand; rejected decisions stand
+   out; status and provenance are visible in lists and details; no source URL opens anything. With an older etat-major:
+   the update hint.
 
 ## Install, update and uninstall
 Install from a release tag, never a branch (replace the tag with the current release):
@@ -103,16 +128,18 @@ Host-scoped settings, id `etat-major`, schema version 1 (`server/settings.ts`), 
 Relative paths, `..` segments and bad ids are rejected by the schema; rejection messages never echo the value.
 Missing or invalid settings give `NOT_CONFIGURED` and nothing is spawned.
 
-RPCs (`shared/contracts.ts`, wired in `server/plugin.ts`; the plugin registers settings and these three handlers only):
+RPCs (`shared/contracts.ts`, wired in `server/plugin.ts`; the plugin registers settings and these five handlers only):
 - `etat-major.planning.get`: returns the cached export with `exportedAt`; runs the exporter only when nothing is cached
   for the current settings. Failures are cached too, so a broken setup is not re-spawned on every screen open.
 - `etat-major.planning.refresh`: the only call that re-runs the exporter over an existing cache entry.
+- `etat-major.discover.get` and `etat-major.discover.refresh`: the same two calls for the Discover export, with their
+  own cache entry and refresh limit.
 - `etat-major.status.get`: `{version, configured, lastError}`, where `lastError` is the last export attempt's error code
-  or null.
+  (either view) or null.
 Results are `{ok:true, data, exportedAt, version}` or `{ok:false, code}` with one of the fixed codes in
 `shared/errors.ts` (the UI maps one state per code). The cache is in memory only, keyed by the configured
-(executable, workspace, project, prs, releases), and cleared by the plugin cleanup; an export that finishes after cleanup is
-dropped.
+(executable, workspace, project, prs, releases; Discover ignores the last two), and cleared by the plugin cleanup; an
+export that finishes after cleanup is dropped.
 Runner logs carry a code and a redacted line, never a setting value.
 
 ## Development
@@ -127,6 +154,8 @@ Proven on a real host (Paseo 0.17.4), at the skeleton stage only: a `git:` insta
 - The 0.1.0 tag itself, and the Planning screen, sidebar row and settings page, have never been installed or seen on a
   real client (phone or web). Every item under Manual acceptance is open.
 - Whether the sidebar row is visible on a client, and that the screen renders and is readable on a phone.
+- The Discover view on a real client (phone or web): layout, tabs, the rejected and warning styling, selecting a source
+  URL, and the switch between Planning and Discover. Its tests expand the component into elements without React Native.
 - An export run by the plugin's runner on the deployment host (daemon-user permissions, timeout and process-group
   cleanup); the venv and a manual `env -i` check were done by hand.
 - The remove-then-install update path with a newer tag.
@@ -138,11 +167,12 @@ Proven on a real host (Paseo 0.17.4), at the skeleton stage only: a `git:` insta
 
 ## Layout
 - `index.server.ts`, `index.client.tsx`: thin `contribute()` wiring, both return cleanup functions.
-- `client/`: the Planning screen, settings page, pure `view-model.ts`, and the summary store behind the sidebar row.
+- `client/`: the Planning screen, Discover view, settings page, pure `view-model.ts` and `discover-view-model.ts`,
+  shared `controls.tsx`, and the summary store behind the sidebar row.
 - `shared/`: RPC contracts, the fixed error codes, the zod schema for the `etat-major/planning@1` export
   (`planning-schema.ts`; rejects other markers and `version` other than 1, strips unknown keys; an unrecognised task
-  `state` is kept and mapped to `"unknown"` so the screen can show an Unrecognised lane)
-  and `sanitize.ts` (pure stripping of controls, bidi, invisible, tag and variation characters; caps; coerces
+  `state` is kept and mapped to `"unknown"` so the screen can show an Unrecognised lane), the one for
+  `etat-major/discover@1` (`discover-schema.ts`) and `sanitize.ts` (pure stripping of controls, bidi, invisible, tag and variation characters; caps; coerces
   non-strings to an empty string).
 - `fixtures/`: a synthetic workspace, exports recorded from the real exporter and a hand-crafted hostile payload;
   see `fixtures/README.md`.

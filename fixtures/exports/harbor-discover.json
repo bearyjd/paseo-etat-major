@@ -1,0 +1,175 @@
+{
+  "decisions": [
+    {
+      "alternatives": [
+        [
+          "Show raw timestamps only",
+          "Operators would have to scan every row by eye."
+        ]
+      ],
+      "chosen": "Flag any sensor with no reading for 24 hours.",
+      "cites": [
+        {
+          "provenance": "ai-generated",
+          "ref": "research:0001#f1",
+          "state": "ok",
+          "status": "reviewed"
+        }
+      ],
+      "decided_on": "2026-10-20",
+      "features": [
+        "harbor/0001"
+      ],
+      "id": "0001",
+      "omitted_alternatives": 0,
+      "omitted_cites": 0,
+      "question": "Should Harbor flag sensors that stop reporting?",
+      "rationale": "Silent sensors were the most common first concern.",
+      "status": "approved"
+    },
+    {
+      "alternatives": [
+        [
+          "One text message per silent sensor",
+          "Operators would mute the number within days.\\u000aMuted numbers miss real outages.\\u000a"
+        ],
+        [
+          "One daily summary message",
+          "It needs a sender service that Harbor does not run."
+        ]
+      ],
+      "chosen": null,
+      "cites": [
+        {
+          "provenance": "ai-generated",
+          "ref": "research:0002#f1",
+          "state": "ok",
+          "status": "unreviewed"
+        },
+        {
+          "provenance": "ai-generated",
+          "ref": "research:0002#f2",
+          "state": "unsourced",
+          "status": "unreviewed"
+        }
+      ],
+      "decided_on": "2026-10-22",
+      "features": [],
+      "id": "0002",
+      "omitted_alternatives": 0,
+      "omitted_cites": 0,
+      "question": "Should Harbor send a text message for every silent sensor?\\u000a",
+      "rationale": "Repeated single alerts get ignored, and the summary needs new infrastructure.\\u000a",
+      "status": "rejected"
+    },
+    {
+      "alternatives": [
+        [
+          "Keep the in-app flag only",
+          "Weekend outages would wait until someone opens the app."
+        ]
+      ],
+      "chosen": null,
+      "cites": [
+        {
+          "provenance": "ai-generated",
+          "ref": "research:0002#f2",
+          "state": "unsourced",
+          "status": "unreviewed"
+        }
+      ],
+      "decided_on": null,
+      "features": [],
+      "id": "0003",
+      "omitted_alternatives": 0,
+      "omitted_cites": 0,
+      "question": "Should Harbor offer a weekly digest of silent sensors?",
+      "rationale": null,
+      "status": "proposed"
+    },
+    {
+      "alternatives": [],
+      "chosen": null,
+      "cites": [],
+      "decided_on": "2026-10-25",
+      "features": [],
+      "id": "0004",
+      "omitted_alternatives": 0,
+      "omitted_cites": 0,
+      "question": "Should Harbor show sensors on a map?",
+      "rationale": "Sensor locations are not recorded yet.",
+      "status": "postponed"
+    }
+  ],
+  "issue_count": 0,
+  "omitted_decisions": 0,
+  "omitted_research": 0,
+  "query": "",
+  "research": [
+    {
+      "features": [
+        "harbor/0001"
+      ],
+      "findings": [
+        {
+          "id": "f1",
+          "source": "https://example.org/harbor/notes/1",
+          "source_date": "2026-10-02",
+          "text": "Teams look first for sensors that stopped reporting.",
+          "unsourced": false
+        }
+      ],
+      "id": "0001",
+      "omitted_findings": 0,
+      "project": null,
+      "provenance": "ai-generated",
+      "status": "reviewed",
+      "title": "How do small teams monitor sensor fleets?"
+    },
+    {
+      "features": [],
+      "findings": [
+        {
+          "id": "f1",
+          "source": "https://example.org/harbor/notes/2",
+          "source_date": "2026-10-09",
+          "text": "Repeated alerts for the same sensor are muted within a week.",
+          "unsourced": false
+        },
+        {
+          "id": "f2",
+          "source": null,
+          "source_date": null,
+          "text": "A daily summary would be read more often than single alerts.",
+          "unsourced": true
+        }
+      ],
+      "id": "0002",
+      "omitted_findings": 0,
+      "project": "harbor",
+      "provenance": "ai-generated",
+      "status": "unreviewed",
+      "title": "When do sensor alerts start being ignored?"
+    },
+    {
+      "features": [],
+      "findings": [
+        {
+          "id": "f1",
+          "source": "https://example.org/harbor/notes/3",
+          "source_date": "2026-09-15",
+          "text": "The first sketch assumed one reading every hour.",
+          "unsourced": false
+        }
+      ],
+      "id": "0003",
+      "omitted_findings": 0,
+      "project": "harbor",
+      "provenance": "human",
+      "status": "superseded",
+      "title": "How often do sensors need to report?"
+    }
+  ],
+  "schema": "etat-major/discover@1",
+  "version": 1
+}

@@ -91,3 +91,9 @@ test("makeStyles follows the theme it is given and does not mutate it", () => {
   assert.equal(wide.text.body.color, colors.foreground);
   assert.equal(JSON.stringify(sentinelTheme), before);
 });
+
+test("decision rows: rejected uses the danger border, pending the warning border, both tappable", () => {
+  assert.equal(wide.rowDanger.borderColor, colors.statusDanger);
+  assert.equal(wide.rowWarning.borderColor, colors.statusWarning);
+  for (const s of [narrow.rowDanger, narrow.rowWarning]) assert.ok(s.minHeight >= 44);
+});

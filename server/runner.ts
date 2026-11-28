@@ -1,9 +1,11 @@
 // The only module allowed to import node:child_process (enforced by tests/guard.test.ts).
-// Runs the pinned exporter: validate -> version check -> export -> parse. Never throws to the caller.
+// Runs the pinned exporter: validate -> version check -> export (planning or discover) -> parse.
+// Never throws to the caller.
 import { spawn } from "node:child_process";
 import * as nodeFs from "node:fs/promises";
 import { tmpdir as osTmpdir } from "node:os";
 import { join } from "node:path";
+import { parseDiscoverJson, type DiscoverPayload } from "../shared/discover-schema.ts";
 import type { ErrorCode } from "../shared/errors.ts";
 import { parsePlanningJson, type PlanningPayload } from "../shared/planning-schema.ts";
 import type { FsLike } from "./fs-like.ts";
@@ -60,11 +62,32 @@ export interface RunnerSettings {
   readonly releases?: string | undefined;
 }
 
-export type ExportResult =
-  | { readonly ok: true; readonly data: PlanningPayload; readonly exportedAt: string; readonly version: string }
-  | { readonly ok: false; readonly code: ErrorCode };
+export type ExportFailure = { readonly ok: false; readonly code: ErrorCode };
+export type ExportResult<T = PlanningPayload> =
+  | { readonly ok: true; readonly data: T; readonly exportedAt: string; readonly version: string }
+  | ExportFailure;
 
-const fail = (code: ErrorCode): ExportResult => ({ ok: false, code });
+const fail = (code: ErrorCode): ExportFailure => ({ ok: false, code });
+
+// What differs between the two exports; validation, environment, caps and single-flight do not.
+interface View<T> {
+  readonly name: "planning" | "discover";
+  // Settings holding recorded input files that this export accepts.
+  readonly inputs: readonly ("prs" | "releases")[];
+  readonly parse: (stdout: string) => { readonly ok: true; readonly data: T } | ExportFailure;
+  // An exit 2 whose stderr matches this means the installed exporter lacks the command.
+  readonly unsupported?: { readonly stderr: RegExp; readonly code: ErrorCode };
+}
+
+const PLANNING: View<PlanningPayload> = { name: "planning", inputs: ["prs", "releases"], parse: parsePlanningJson };
+
+const DISCOVER: View<DiscoverPayload> = {
+  name: "discover",
+  inputs: [],
+  parse: parseDiscoverJson,
+  // The argument parser's own "unknown command" line, anchored so record text cannot imitate it.
+  unsupported: { stderr: /^etat-major(?: export)?: error: argument \w+: invalid choice: '(?:export|discover)'/m, code: "DISCOVER_UNSUPPORTED" },
+};
 
 // node's execFile silently drops `detached`, so the child would stay in our process group and a
 // group kill could not reach grandchildren. spawn honours it; this adapter keeps execFile semantics
@@ -121,7 +144,7 @@ const defaultDeps = (): RunnerDeps => ({
 
 type Outcome =
   | { kind: "ok"; stdout: string }
-  | { kind: "exit"; stderr: string }
+  | { kind: "exit"; status: number | null; stderr: string }
   | { kind: "timeout" }
   | { kind: "toolarge" }
   | { kind: "spawn" };
@@ -155,7 +178,7 @@ function runChild(d: RunnerDeps, file: string, args: readonly string[], cwd: str
         if (!err) return done({ kind: "ok", stdout });
         if (err.code === MAXBUFFER_CODE) return done({ kind: "toolarge" });
         // String codes (ENOENT, EACCES, ...) are spawn failures; numeric or null (signal) are exits.
-        done(typeof err.code === "string" ? { kind: "spawn" } : { kind: "exit", stderr });
+        done(typeof err.code === "string" ? { kind: "spawn" } : { kind: "exit", status: err.code ?? null, stderr });
       });
       pid = child.pid;
       if (!settled) {
@@ -181,17 +204,19 @@ function parseVersion(stdout: string): string | undefined {
 }
 
 export interface Runner {
-  // Runs (or joins) one export. Concurrent identical calls share one child; a call for a
-  // different (exe, workspace, project, prs, releases) while one is running returns BUSY.
+  // Runs (or joins) one export. Concurrent identical calls share one child; a call for another
+  // view or different (exe, workspace, project, prs, releases) while one is running returns BUSY.
   exportPlanning(settings: RunnerSettings): Promise<ExportResult>;
+  // `export discover`: workspace and project only; the recorded input files are not read.
+  exportDiscover(settings: RunnerSettings): Promise<ExportResult<DiscoverPayload>>;
 }
 
 export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
   const d: RunnerDeps = { ...defaultDeps(), ...overrides };
   const versions = new Map<string, string>();
-  let inflight: { key: string; promise: Promise<ExportResult> } | undefined;
+  let inflight: { key: string; promise: Promise<ExportResult<unknown>> } | undefined;
 
-  async function checkVersion(exe: string, identity: string, cwd: string, home: string): Promise<{ version: string } | ExportResult> {
+  async function checkVersion(exe: string, identity: string, cwd: string, home: string): Promise<{ version: string } | ExportFailure> {
     const cacheKey = `${exe}\0${identity}`;
     const cached = versions.get(cacheKey);
     if (cached) return { version: cached };
@@ -204,7 +229,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     return { version };
   }
 
-  async function exportOnce(exe: string, identity: string, ws: string, project: string, inputs: readonly string[]): Promise<ExportResult> {
+  async function exportOnce<T>(view: View<T>, exe: string, identity: string, ws: string, project: string, inputs: readonly string[]): Promise<ExportResult<T>> {
     let home: string;
     try {
       home = await d.fs.mkdtemp(join(d.tmpdir, "etat-major-home-"));
@@ -214,15 +239,17 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     try {
       const v = await checkVersion(exe, identity, ws, home);
       if (!("version" in v)) return v;
-      const args = ["export", "planning", "--json", `--workspace=${ws}`, `--project=${project}`, ...inputs];
+      const args = ["export", view.name, "--json", `--workspace=${ws}`, `--project=${project}`, ...inputs];
       const o = await runChild(d, exe, args, ws, home);
       if (o.kind === "timeout" || o.kind === "toolarge") return fail(OUTCOME_CODE[o.kind]);
       if (o.kind !== "ok") {
+        const missing = o.kind === "exit" && o.status === 2 && view.unsupported?.stderr.test(o.stderr);
+        const code: ErrorCode = missing ? view.unsupported!.code : "EXPORT_FAILED";
         const detail = o.kind === "exit" ? redactStderrLine(o.stderr) : "spawn failed";
-        d.log({ code: "EXPORT_FAILED", detail });
-        return fail("EXPORT_FAILED");
+        d.log({ code, detail });
+        return fail(code);
       }
-      const parsed = parsePlanningJson(o.stdout);
+      const parsed = view.parse(o.stdout);
       if (!parsed.ok) return fail(parsed.code);
       return { ok: true, data: parsed.data, exportedAt: d.now().toISOString(), version: v.version };
     } finally {
@@ -230,7 +257,7 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     }
   }
 
-  async function exportPlanning(s: RunnerSettings): Promise<ExportResult> {
+  async function run<T>(view: View<T>, s: RunnerSettings): Promise<ExportResult<T>> {
     try {
       if (!s.executable || !s.workspace || !s.project || !isValidProject(s.project)) return fail("NOT_CONFIGURED");
       const exe = await validateExecutable(s.executable, { fs: d.fs, uid: d.uid });
@@ -240,16 +267,17 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
       // Workspace content is writable by whoever edits the project; never run code from inside it.
       if (isInside(exe.realpath, ws.realpath)) return fail("EXE_INVALID");
       const inputs: string[] = [];
-      for (const name of ["prs", "releases"] as const) {
+      for (const name of view.inputs) {
         if (!s[name]) continue;
         const file = await validateInputFile(s[name], { fs: d.fs });
         if (!file.ok) return fail(file.code);
         inputs.push(`--${name}=${file.realpath}`);
       }
-      const key = [exe.realpath, ws.realpath, s.project, ...inputs].join("\0");
-      if (inflight) return inflight.key === key ? inflight.promise : fail("BUSY");
-      const promise = exportOnce(exe.realpath, `${exe.mtimeMs}:${exe.size}:${exe.ino}`, ws.realpath, s.project, inputs)
-        .catch((): ExportResult => fail("EXPORT_FAILED"))
+      const key = [view.name, exe.realpath, ws.realpath, s.project, ...inputs].join("\0");
+      // The key names the view, so a joined promise always carries this view's payload type.
+      if (inflight) return inflight.key === key ? (inflight.promise as Promise<ExportResult<T>>) : fail("BUSY");
+      const promise = exportOnce(view, exe.realpath, `${exe.mtimeMs}:${exe.size}:${exe.ino}`, ws.realpath, s.project, inputs)
+        .catch((): ExportResult<T> => fail("EXPORT_FAILED"))
         .finally(() => {
           inflight = undefined;
         });
@@ -260,5 +288,5 @@ export function createRunner(overrides: Partial<RunnerDeps> = {}): Runner {
     }
   }
 
-  return { exportPlanning };
+  return { exportPlanning: (s) => run(PLANNING, s), exportDiscover: (s) => run(DISCOVER, s) };
 }
