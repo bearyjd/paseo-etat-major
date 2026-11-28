@@ -98,7 +98,9 @@ is installed, remove it first (`paseo plugin remove etat-major-smoke`). The mani
 ## Deployment host
 The maintainer runs these steps by hand; the plugin never touches the host beyond the configured executable.
 1. Create a venv and install etat-major at a pinned tag or commit, without the `[web]` extra (the export needs no
-   web dependencies). Use either `python3 -m venv` (needs the OS venv and pip packages) or `uv`:
+   web dependencies). The runner accepts `>=0.1.0 <0.3.0`. Use `v0.2.0` for both Planning and Discover.
+   Create and populate the venv with `umask 022` if the host normally makes new files group writable.
+   Use either `python3 -m venv` (needs the OS venv and pip packages) or `uv`:
 
        python3 -m venv <venv>
        <venv>/bin/pip install "git+https://github.com/bearyjd/etat-major@<tag-or-sha>"
@@ -148,14 +150,15 @@ Runner logs carry a code and a redacted line, never a setting value.
     npm test
 
 ## Unproven
-Proven on a real host (Paseo 0.17.4), at the skeleton stage only: a `git:` install with `--ref` installs, the manifest
-`build` step runs, zod and the SDK resolve, the plugin loads and registers its RPC. Still unproven for 0.1.0:
+On a temporary Paseo 0.17.4 daemon, the bundled Chromium web client opened Planning from the sidebar and displayed
+the Harbor fixture through État-major v0.2.0. The desktop check matched all task lanes and Discover list titles to the
+CLI. It opened a rejected decision, verified that a source URL was plain text, and checked the 390-pixel viewport for
+horizontal overflow. A pinned 0.1.0 build without Discover showed the upgrade hint. The settings screen also showed
+the expected errors for invalid executable, workspace and recorded input paths.
 
-- The 0.1.0 tag itself, and the Planning screen, sidebar row and settings page, have never been installed or seen on a
-  real client (phone or web). Every item under Manual acceptance is open.
-- Whether the sidebar row is visible on a client, and that the screen renders and is readable on a phone.
-- The Discover view on a real client (phone or web): layout, tabs, the rejected and warning styling, selecting a source
-  URL, and the switch between Planning and Discover. Its tests expand the component into elements without React Native.
+Still unproven for 0.1.0:
+
+- Install from the public release tag, native phone rendering, and the full acceptance checklist with a real project.
 - An export run by the plugin's runner on the deployment host (daemon-user permissions, timeout and process-group
   cleanup); the venv and a manual `env -i` check were done by hand.
 - The remove-then-install update path with a newer tag.

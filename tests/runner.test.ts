@@ -83,7 +83,8 @@ test("HOME is a fresh temp dir per call and is removed afterwards, also on failu
 test("version regex and pinned range", async () => {
   const cases: Array<[string, boolean]> = [
     ["etat-major 0.1.0\n", true], ["etat-major 0.1.0", true], ["etat-major 0.1.99\n", true],
-    ["etat-major 0.0.9\n", false], ["etat-major 0.2.0\n", false], ["etat-major 1.0.0\n", false],
+    ["etat-major 0.2.0\n", true], ["etat-major 0.2.99\n", true],
+    ["etat-major 0.0.9\n", false], ["etat-major 0.3.0\n", false], ["etat-major 1.0.0\n", false],
     ["etat-major 0.1\n", false], ["etat-major 0.1.0-rc1\n", false], ["etat-major 0.1.0\nextra\n", false],
     ["other 0.1.0\n", false], ["etat-major 0.1.0\n\n", false], ["", false], [" etat-major 0.1.0\n", false],
   ];
@@ -141,7 +142,7 @@ test("version cached per realpath+mtime; failures are not cached", async () => {
   await runner.exportPlanning(SETTINGS);
   assert.equal(h.calls.filter((c) => c.args[0] === "--version").length, 2);
 
-  let out = "etat-major 0.2.0\n";
+  let out = "etat-major 0.3.0\n";
   const g = harness((c) => (c.args[0] === "--version" ? { stdout: out } : { stdout: FIXTURE }));
   const r2 = createRunner(g.deps);
   assert.equal(failure(await r2.exportPlanning(SETTINGS)), "VERSION_UNSUPPORTED");

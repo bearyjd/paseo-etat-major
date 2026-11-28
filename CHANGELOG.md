@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Support État-major 0.2.x for Planning and Discover alongside 0.1.x.
 - Discover view, reached from the Planning screen: decisions (rejected ones marked) and research with review status,
   provenance and citation state always shown; source URLs as plain text. New RPCs `etat-major.discover.get` and
   `etat-major.discover.refresh`, running only `export discover --json` with the workspace and project.
